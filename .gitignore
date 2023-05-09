@@ -30,4 +30,7 @@
 *.exe
 *.out
 *.app
+
+# ignore csv files, add them urself
+*.csv
 .gitignore
