@@ -28,8 +28,10 @@ def fetch_classification_data(dataset="mnist_784", random_state=42):
     # np.savetxt('x_train.csv', train_X, fmt='%i', delimiter=',')
     # np.savetxt('y_train.csv', train_y, fmt='%i', delimiter=',')
     # np.savetxt('x_test.csv', ev_X, fmt='%i', delimiter=',')
-    np.savetxt('train.csv', np.concatenate((train_y.reshape((60000, 1)), train_X), axis=1), fmt='%i', delimiter=',')
-    np.savetxt('test.csv', np.concatenate((ev_y.reshape((10000, 1)), ev_X), axis=1), fmt='%i', delimiter=',')
+    # np.savetxt('train.csv', np.concatenate((train_y.reshape((60000, 1)), train_X), axis=1), fmt='%i', delimiter=',')
+    np.savetxt('train.txt', np.concatenate((train_y.reshape((60000, 1)), train_X), axis=1), fmt='%i', delimiter='\t')
+    np.savetxt('test.txt', np.concatenate((ev_y.reshape((60000, 1)), ev_X), axis=1), fmt='%i', delimiter='\t')
+    # np.savetxt('test.csv', np.concatenate((ev_y.reshape((10000, 1)), ev_X), axis=1), fmt='%i', delimiter=',')
 
 
 if len(sys.argv) == 2:
