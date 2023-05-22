@@ -45,6 +45,4 @@ endif()
 ### add_executable( EXECUTABLE-NAME SOURCES )
 ###
 ### EXAMPLE:
-### add_executable( test demo-simple-example.cpp )
-
 add_executable( test encrypt.cpp )
