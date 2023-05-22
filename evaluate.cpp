@@ -273,13 +273,14 @@ vector <float> dot (const vector <float>& m1, const vector <float>& m2, const in
      */
     
     vector <float> output (m1_rows*m2_columns);
-    
+   
     for( int row = 0; row != m1_rows; ++row ) {
-        for( int col = 0; col != m2_columns; ++col ) {
+        // cout << "row=" << row << "\n";
+	for( int col = 0; col != m2_columns; ++col ) {
             output[ row * m2_columns + col ] = 0.f;
-            for( int k = 0; k != m1_columns; ++k ) {
+	    for( int k = 0; k != m1_columns; ++k ) {
                 output[ row * m2_columns + col ] += m1[ row * m1_columns + k ] * m2[ k * m2_columns + col ];
-            }
+	    }
         }
     }
     
@@ -298,11 +299,11 @@ vector<string> split(const string &s, char delim) {
 
 void accuracy_calc(const vector <float>&y, const vector <float>&y_hat){
 
-	int BATCH_SIZE=256;
 	int counter=0, digit, index=0;
 	float max=0.;
-	vector<float> max_save;
-	for (unsigned i=0; i<BATCH_SIZE; i++)
+	vector <float> max_save;
+	//for (unsigned i=0; i<y_hat.size(); i++)
+	for (unsigned i=0; i<y.size(); i++)
 	{
 		index=0;
 		max=0.;
@@ -312,13 +313,12 @@ void accuracy_calc(const vector <float>&y, const vector <float>&y_hat){
 			{
 				max = y_hat[(10*i)+j];
 				index=j;
-			};
-		};
+			}
+		}
 		if(y[i]==index) counter++;
-		max_save.push_back(index);
-	};
+	}
 	float count = counter;
-	cout << "	Accuracy = " << (count/BATCH_SIZE)*100 << "% " << counter << " right answers" << "\n";
+	cout << "	Accuracy = " << (count/y.size())*100 << "% " << counter << " right answers" << "\n";
 }
 
 int main(int argc, const char * argv[]) {
@@ -331,6 +331,10 @@ int main(int argc, const char * argv[]) {
     vector<float> y_train;
     vector<float> X_test;
     vector<float> y_test;
+    vector<float> W1;
+    vector<float> W2;
+    vector<float> W3;
+    
     ifstream myfile ("dataset/train.txt");
     if (myfile.is_open())
     {
@@ -338,14 +342,7 @@ int main(int argc, const char * argv[]) {
         {
             line_v = split(line, '\t');
             int digit = strtof((line_v[0]).c_str(),0);
-            for (unsigned i = 0; i < 10; ++i) {
-                if (i == digit)
-                {
-                    y_train.push_back(1.);
-                }
-                else y_train.push_back(0.);
-            }
-            
+            y_train.push_back(digit);
             int size = static_cast<int>(line_v.size());
             for (unsigned i = 1; i < size; ++i) {
                 X_train.push_back(strtof((line_v[i]).c_str(),0));
@@ -360,9 +357,8 @@ int main(int argc, const char * argv[]) {
     ifstream test_file ("dataset/test.txt");
     if (test_file.is_open())
     {
-        for(unsigned z=0; z<256; z++)
+	while (getline(test_file, line))	
 	{
-            getline (test_file,line);
             line_v = split(line, '\t');
             int digit = strtof((line_v[0]).c_str(),0);
             y_test.push_back(digit);
@@ -377,97 +373,52 @@ int main(int argc, const char * argv[]) {
     
     else cout << "Unable to open file" << '\n';
 
-    int xsize = static_cast<int>(X_train.size());
-    int ysize = static_cast<int>(y_train.size());
-    
-    // Some hyperparameters for the NN
-    int BATCH_SIZE = 256;
-    float lr = .01/BATCH_SIZE;
-
-    // Random initialization of the weights
-    vector <float> W1 = random_vector(784*128);
-    vector <float> W2 = random_vector(128*64);
-    vector <float> W3 = random_vector(64*10);
-
-    cout << "Training the model ...\n";
-    for (unsigned i = 0; i < 10000; ++i) {
-
-        // Building batches of input variables (X) and labels (y)
-        int randindx = rand() % (60000-BATCH_SIZE);
-        vector<float> b_X;
-        vector<float> b_y;
-        for (unsigned j = randindx*784; j < (randindx+BATCH_SIZE)*784; ++j){
-            b_X.push_back(X_train[j]);
+    ifstream weights_file("trained_model.txt");		// todo:add ./dataset
+    if (weights_file.is_open())
+    {
+	getline(weights_file, line);
+        line_v = split(line, ',');
+        int size = static_cast<int>(line_v.size());
+        for (unsigned i = 0; i < size; ++i) {
+        	W1.push_back(strtof((line_v[i]).c_str(),0));
         }
-        for (unsigned k = randindx*10; k < (randindx+BATCH_SIZE)*10; ++k){
-            b_y.push_back(y_train[k]);
+	getline(weights_file, line);
+        line_v = split(line, ',');
+        size = static_cast<int>(line_v.size());
+        for (unsigned i = 0; i < size; ++i) {
+        	W2.push_back(strtof((line_v[i]).c_str(),0));
         }
-
-        // Feed forward
-        vector<float> a1 = relu(dot( b_X, W1, BATCH_SIZE, 784, 128 ));
-        vector<float> a2 = relu(dot( a1, W2, BATCH_SIZE, 128, 64 ));
-        vector<float> yhat = softmax(dot( a2, W3, BATCH_SIZE, 64, 10 ), 10);
-        
-        // Back propagation
-        vector<float> dyhat = (yhat - b_y);
-        // dW3 = a2.T * dyhat
-        vector<float> dW3 = dot(transpose( &a2[0], BATCH_SIZE, 64 ), dyhat, 64, BATCH_SIZE, 10);
-        // dz2 = dyhat * W3.T * relu'(a2)
-        vector<float> dz2 = dot(dyhat, transpose( &W3[0], 64, 10 ), BATCH_SIZE, 10, 64) * reluPrime(a2);
-        // dW2 = a1.T * dz2
-        vector<float> dW2 = dot(transpose( &a1[0], BATCH_SIZE, 128 ), dz2, 128, BATCH_SIZE, 64);
-        // dz1 = dz2 * W2.T * relu'(a1)
-        vector<float> dz1 = dot(dz2, transpose( &W2[0], 128, 64 ), BATCH_SIZE, 64, 128) * reluPrime(a1);
-        // dW1 = X.T * dz1
-        vector<float> dW1 = dot(transpose( &b_X[0], BATCH_SIZE, 784 ), dz1, 784, BATCH_SIZE, 128);
-        
-        // Updating the parameters
-        W3 = W3 - lr * dW3;
-        W2 = W2 - lr * dW2;
-        W1 = W1 - lr * dW1;
-
-        if ((i+1) % 100 == 0){
-            cout << "-----------------------------------------------Epoch " << i+1 << "--------------------------------------------------" <<"\n";
-            cout << "Predictions:" << "\n";
-            print ( yhat, 10, 10 );
-            cout << "Ground truth:" << "\n";
-            print ( b_y, 10, 10 );
-            vector<float> loss_m = yhat - b_y;
-            float loss = 0.0;
-            for (unsigned k = 0; k < BATCH_SIZE*10; ++k){
-                loss += loss_m[k]*loss_m[k];
-            }
-            cout << "                                            Loss " << loss/BATCH_SIZE <<"\n";
-        	// Feed forward
-       	 	vector<float> a1 = relu(dot( X_test, W1, BATCH_SIZE, 784, 128 ));
-        	vector<float> a2 = relu(dot( a1, W2, BATCH_SIZE, 128, 64 ));
-        	vector<float> yhat = softmax(dot( a2, W3, BATCH_SIZE, 64, 10 ), 10);
-		accuracy_calc(y_test, yhat);	
-
-            cout << "--------------------------------------------End of Epoch :(------------------------------------------------" <<"\n";
-        
-		if(i==9999)
-		{
-			ofstream outfile ("trained_model.txt");
-			if(outfile)
-			{	
-				for(unsigned i=0; i<(784*128); i++) outfile << W1[i] << ",";
-				outfile << "\n";
-				for(unsigned i=0; i<(128*64); i++) outfile << W2[i] << ",";
-				outfile << "\n";
-				for(unsigned i=0; i<(64*10); i++) outfile << W3[i] << ",";
-				outfile.close();
-				cout << "Model saved";
-			}
-			else 
-			{
-				cout << "Could not save model\n";
-			};
-		};
-	};
-    };
-
+	getline(weights_file, line);
+        line_v = split(line, ',');
+        size = static_cast<int>(line_v.size());
+        for (unsigned i = 0; i < size; ++i) {
+        	W3.push_back(strtof((line_v[i]).c_str(),0));
+        }
+        weights_file.close();
+    }
+   	 
+    else cout << "Unable to open file" << '\n';
     
 
+    int train_size = static_cast<int>(X_train.size()/784);
+    int test_size = static_cast<int>(X_test.size()/784);
+  	
+	 cout << "Testing the model\n";
+
+    if(1)
+    { 	
+    	vector<float> a1 = relu(dot( X_train, W1, train_size, 784, 128 ));
+	vector<float> a2 = relu(dot( a1, W2, train_size, 128, 64 ));
+    	vector<float> yhat = softmax(dot( a2, W3, train_size, 64, 10 ), 10);
+    	accuracy_calc(y_train, yhat);	
+    }
+    if(1)
+    { 
+    	vector<float> a1 = relu(dot( X_test, W1, test_size, 784, 128 ));
+    	vector<float> a2 = relu(dot( a1, W2, test_size, 128, 64 ));
+    	vector<float> yhat = softmax(dot( a2, W3, test_size, 64, 10 ), 10);
+    	accuracy_calc(y_test, yhat);	
+    }
+    
     return 0;
 }
