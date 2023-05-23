@@ -34,3 +34,10 @@
 # ignore csv files, add them urself
 *.csv
 .gitignore
+
+# ignore everything in build path except test and train files
+build/*
+!build/Data
+build/Data/*
+!build/Data/test.txt
+!build/Data/train.txt
