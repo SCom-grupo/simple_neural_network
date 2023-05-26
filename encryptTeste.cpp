@@ -34,7 +34,7 @@ vector<string> split(const string &s, char delim) {
 }
 
 int main(int argc, const char * argv[]) {
-    uint32_t multDepth = 6;
+    uint32_t multDepth = 11;
     uint32_t scaleModSize = 50;
     uint32_t batchSize = 1<<13;
 
@@ -113,11 +113,11 @@ int main(int argc, const char * argv[]) {
     ifstream inputW3 (DATAFOLDER + "/w3.txt");
     ofstream output1 (DATAFOLDER + "/Data.txt");
     ofstream output2 (DATAFOLDER + "/Label.txt");
-    ofstream output3 (DATAFOLDER + "/DataRec.txt");
-    ofstream output4 (DATAFOLDER + "/ResultW1.txt");
-    ofstream output5 (DATAFOLDER + "/ResultReluW1.txt");
-    ofstream output6 (DATAFOLDER + "/ResultW2.txt");
-    ofstream output7 (DATAFOLDER + "/ResultReluW2.txt");
+    ofstream output3 (DATAFOLDER + "/ResultW1.txt");
+    ofstream output4 (DATAFOLDER + "/ResultReluW1.txt");
+    ofstream output5 (DATAFOLDER + "/ResultW2.txt");
+    ofstream output6 (DATAFOLDER + "/ResultReluW2.txt");
+    ofstream output7 (DATAFOLDER + "/ResultW3.txt");
     ofstream output8 (DATAFOLDER + "/ExpectedResultW1.txt");
 
     // Initializing the vector of vectors
@@ -233,37 +233,41 @@ int main(int argc, const char * argv[]) {
             y_train_T.push_back(tempy_T);
         }
 
-        // Encrypts the transposed matrix (X_train_T) in lines to ciphertextVecx
-        std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecx;
-        for (unsigned i = 0; i < size2; ++i) {
-            Plaintext plaintext = cc->MakeCKKSPackedPlaintext(X_train_T[i]);
-            ciphertextVecx.push_back(cc->Encrypt(keys.publicKey, plaintext));
-        }
+        if(true){
+            // Encrypts the transposed matrix (X_train_T) in lines to ciphertextVecx
+            std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecx;
+            for (unsigned i = 0; i < size2; ++i) {
+                Plaintext plaintext = cc->MakeCKKSPackedPlaintext(X_train_T[i]);
+                ciphertextVecx.push_back(cc->Encrypt(keys.publicKey, plaintext));
+            }
 
-        // Outputs the encrypted data to file /Encrypteddata.txt
-        if (!Serial::SerializeToFile(DATAFOLDER + "/Encrypteddata.txt", ciphertextVecx, SerType::BINARY)) {
-            std::cerr << "Error writing serialization of the encrypteddata to "
-                     "Encrypteddata.txt"
-            << std::endl;
-            return 1;
+            // Outputs the encrypted data to file /Encrypteddata.txt
+            if (!Serial::SerializeToFile(DATAFOLDER + "/Encrypteddata.txt", ciphertextVecx, SerType::BINARY)) {
+                std::cerr << "Error writing serialization of the encrypteddata to "
+                        "Encrypteddata.txt"
+                << std::endl;
+                return 1;
+            }
+            std::cout << "The encrypteddata has been serialized." << std::endl;
         }
-        std::cout << "The encrypteddata has been serialized." << std::endl;
+        
+        if(true){
+            // Encrypts the transposed matrix (y_train_T) in lines to ciphertextVecy
+            std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecy;
+            for (unsigned i = 0; i < size4; ++i) {
+                Plaintext plaintext = cc->MakeCKKSPackedPlaintext(y_train_T[i]);
+                ciphertextVecy.push_back(cc->Encrypt(keys.publicKey, plaintext));
+            }
 
-        // Encrypts the transposed matrix (y_train_T) in lines to ciphertextVecy
-        std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecy;
-        for (unsigned i = 0; i < size4; ++i) {
-            Plaintext plaintext = cc->MakeCKKSPackedPlaintext(y_train_T[i]);
-            ciphertextVecy.push_back(cc->Encrypt(keys.publicKey, plaintext));
+            // Outputs the encrypted labels to file /Encryptedlabel.txt
+            if (!Serial::SerializeToFile(DATAFOLDER + "/Encryptedlabel.txt", ciphertextVecy, SerType::BINARY)) {
+                std::cerr << "Error writing serialization of the encryptedlabel to "
+                        "Encryptedlabel.txt"
+                << std::endl;
+                return 1;
+            }
+            std::cout << "The encryptedlabel has been serialized." << std::endl;
         }
-
-        // Outputs the encrypted labels to file /Encryptedlabel.txt
-        if (!Serial::SerializeToFile(DATAFOLDER + "/Encryptedlabel.txt", ciphertextVecy, SerType::BINARY)) {
-            std::cerr << "Error writing serialization of the encryptedlabel to "
-                     "Encryptedlabel.txt"
-            << std::endl;
-            return 1;
-        }
-        std::cout << "The encryptedlabel has been serialized." << std::endl;
 
         // Clears cryptocontext to check correct functioning
         cc->ClearEvalMultKeys();
@@ -304,58 +308,73 @@ int main(int argc, const char * argv[]) {
         }
         std::cout << "Deserialized the eval mult keys." << std::endl;
 
-        // Reads encrypted data from file /Encrypteddata.txt
-        std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecx_R;
-        if (Serial::DeserializeFromFile(DATAFOLDER + "/Encrypteddata.txt", ciphertextVecx_R, SerType::BINARY) == false) {
-            std::cerr << "Could not read the ciphertext" << std::endl;
-            return 1;
-        }
-        std::cout << "The first ciphertext has been deserialized." << std::endl;
-
-        std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecResultW1;
-        // Performs the LinearWSum of ciphertextVecx_R with W1 and outputs the results to output4
-        for(unsigned i = 0; i < 128; ++i){
-            auto result1 = cc->EvalLinearWSum(ciphertextVecx_R, W1[i]);
-            auto approx1 = cc->EvalChebyshevFunction([](double x) -> double { return (x>0) ? x : 0; }, result1, 0, 5, 8);
-            ciphertextVecResultW1.push_back(approx1);
-            std::cout << "Decrypted and calculated line i="<< i << std::endl;
-            Plaintext resultDecrypted1;
-            Plaintext resultDecryptedRelu1;
-            cc->Decrypt(sk, result1, &resultDecrypted1);
-            output4 << resultDecrypted1;
-            cc->Decrypt(sk, approx1, &resultDecryptedRelu1);
-            output5 << resultDecryptedRelu1;
-        }
-
-        for(unsigned k=0; k<128; k++){
-            for (unsigned i = 0; i < size1; ++i) {
-            double x = 0;
-                for (unsigned j = 0; j < size2; ++j) {
-                    x += X_train_T[j][i] * W1[k][j];
+        std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecResultW2;
+        if(true){
+            std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecResultW1;
+            if(true){
+                // Reads encrypted data from file /Encrypteddata.txt
+                std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecx_R;
+                if (Serial::DeserializeFromFile(DATAFOLDER + "/Encrypteddata.txt", ciphertextVecx_R, SerType::BINARY) == false) {
+                    std::cerr << "Could not read the ciphertext" << std::endl;
+                    return 1;
                 }
-            output8 << x << "\t";
+                std::cout << "The first ciphertext has been deserialized." << std::endl;
+
+                // Performs the LinearWSum of ciphertextVecx_R with W1 and outputs the results to output4
+                for(unsigned i = 0; i < 128; ++i){
+                    auto result1 = cc->EvalLinearWSum(ciphertextVecx_R, W1[i]);
+                    auto approx1 = cc->EvalChebyshevFunction([](double x) -> double { return (x>0) ? x : 0; }, result1, 0, 5, 5);
+                    ciphertextVecResultW1.push_back(approx1);
+                    std::cout << "Decrypted and calculated line i="<< i << std::endl;
+                    Plaintext resultDecrypted1;
+                    Plaintext resultDecryptedRelu1;
+                    cc->Decrypt(sk, result1, &resultDecrypted1);
+                    output3 << resultDecrypted1;
+                    cc->Decrypt(sk, approx1, &resultDecryptedRelu1);
+                    output4 << resultDecryptedRelu1;
+                }
             }
-            output8 << "\n";
-        } 
 
-        std::cout << "First layer completed" << std::endl;
+            for(unsigned k=0; k<128; k++){
+                for (unsigned i = 0; i < size1; ++i) {
+                double x = 0;
+                    for (unsigned j = 0; j < size2; ++j) {
+                        x += X_train_T[j][i] * W1[k][j];
+                    }
+                output8 << x << "\t";
+                }
+                output8 << "\n";
+            } 
 
-        for(unsigned i = 0; i < 64; ++i){
-            auto result2 = cc->EvalLinearWSum(ciphertextVecResultW1, W2[i]);
-            std::cout << "LinearWSum completed" << i << std::endl;
-            auto approx2 = cc->EvalChebyshevFunction([](double x) -> double { return (x>0) ? x : 0; }, result2, 0, 5, 8);
-            /*
-            std::cout << "Decrypted and calculated line i="<< i << std::endl;
-            Plaintext resultDecrypted2;
-            Plaintext resultDecryptedRelu2;
-            cc->Decrypt(sk, result2, &resultDecrypted2);
-            output6 << resultDecrypted2;
-            cc->Decrypt(sk, approx2, &resultDecryptedRelu2);
-            output7 << resultDecryptedRelu2;
-            */
+            std::cout << "First layer completed" << std::endl;
+
+            for(unsigned i = 0; i < 64; ++i){
+                auto result2 = cc->EvalLinearWSum(ciphertextVecResultW1, W2[i]);
+                Plaintext resultDecrypted2;
+                cc->Decrypt(sk, result2, &resultDecrypted2);
+                output5 << resultDecrypted2;
+                std::cout << "LinearWSum completed" << std::endl;
+                auto approx2 = cc->EvalChebyshevFunction([](double x) -> double { return (x>0) ? x : 0; }, result2, 0, 5, 5);
+                ciphertextVecResultW2.push_back(approx2);
+                std::cout << "Decrypted and calculated line i="<< i << std::endl;
+                Plaintext resultDecryptedRelu2;
+                cc->Decrypt(sk, approx2, &resultDecryptedRelu2);
+                output6 << resultDecryptedRelu2;
+            }
+
+            std::cout << "Second layer completed" << std::endl;
         }
 
-        std::cout << "Second layer completed" << std::endl;
+        for(unsigned i = 0; i < 10; ++i){
+            auto result3 = cc->EvalLinearWSum(ciphertextVecResultW2, W3[i]);
+            Plaintext resultDecrypted3;
+            cc->Decrypt(sk, result3, &resultDecrypted3);
+            output7 << resultDecrypted3;
+            std::cout << "LinearWSum completed" << std::endl;
+            std::cout << "Decrypted and calculated line i="<< i << std::endl;
+        }
+
+        std::cout << "Third layer completed" << std::endl;
 
     }
     else cout << "Unable to open file" << '\n';
