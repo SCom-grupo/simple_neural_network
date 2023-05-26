@@ -1,5 +1,4 @@
 /* This code reads the weights from the weights files and the encrypted data and does the calculations*/
-/* This specific version also outputs a ExpectedResults file to be compared with the results file to verify correct operation*/
 #include "openfhe.h"
 
 // header files needed for serialization
@@ -35,7 +34,7 @@ vector<string> split(const string &s, char delim) {
 }
 
 int main(int argc, const char * argv[]) {
-    uint32_t multDepth = 1;
+    uint32_t multDepth = 6;
     uint32_t scaleModSize = 50;
     uint32_t batchSize = 1<<13;
 
@@ -43,6 +42,7 @@ int main(int argc, const char * argv[]) {
     parameters.SetMultiplicativeDepth(multDepth);
     parameters.SetScalingModSize(scaleModSize);
     parameters.SetBatchSize(batchSize);
+    parameters.SetScalingTechnique(FLEXIBLEAUTO);
 
     CryptoContext<DCRTPoly> cc = GenCryptoContext(parameters);
 
@@ -84,6 +84,25 @@ int main(int argc, const char * argv[]) {
 
     cc->EvalMultKeyGen(keys.secretKey);
 
+    // Serialize the relinearization (evaluation) key for homomorphic
+    // multiplication
+    std::ofstream emkeyfile(DATAFOLDER + "/" + "key-eval-mult.txt", std::ios::out | std::ios::binary);
+    if (emkeyfile.is_open()) {
+        if (cc->SerializeEvalMultKey(emkeyfile, SerType::BINARY) == false) {
+            std::cerr << "Error writing serialization of the eval mult keys to "
+                         "key-eval-mult.txt"
+                      << std::endl;
+            return 1;
+        }
+        std::cout << "The eval mult keys have been serialized." << std::endl;
+
+        emkeyfile.close();
+    }
+    else {
+        std::cerr << "Error serializing eval mult keys" << std::endl;
+        return 1;
+    }
+
     string line;
     vector<string> line_v;
 
@@ -95,8 +114,11 @@ int main(int argc, const char * argv[]) {
     ofstream output1 (DATAFOLDER + "/Data.txt");
     ofstream output2 (DATAFOLDER + "/Label.txt");
     ofstream output3 (DATAFOLDER + "/DataRec.txt");
-    ofstream output4 (DATAFOLDER + "/Result.txt");
-    ofstream output5 (DATAFOLDER + "/ExpectedResult.txt");
+    ofstream output4 (DATAFOLDER + "/ResultW1.txt");
+    ofstream output5 (DATAFOLDER + "/ResultReluW1.txt");
+    ofstream output6 (DATAFOLDER + "/ResultW2.txt");
+    ofstream output7 (DATAFOLDER + "/ResultReluW2.txt");
+    ofstream output8 (DATAFOLDER + "/ExpectedResultW1.txt");
 
     // Initializing the vector of vectors
     vector<vector<double>> X_train;
@@ -271,6 +293,17 @@ int main(int argc, const char * argv[]) {
         }
         std::cout << "The secret key has been deserialized." << std::endl;
 
+        std::ifstream emkeys(DATAFOLDER + "/key-eval-mult.txt", std::ios::in | std::ios::binary);
+        if (!emkeys.is_open()) {
+            std::cerr << "I cannot read serialization from " << DATAFOLDER + "/key-eval-mult.txt" << std::endl;
+            return 1;
+        }
+        if (cc->DeserializeEvalMultKey(emkeys, SerType::BINARY) == false) {
+            std::cerr << "Could not deserialize the eval mult key file" << std::endl;
+            return 1;
+        }
+        std::cout << "Deserialized the eval mult keys." << std::endl;
+
         // Reads encrypted data from file /Encrypteddata.txt
         std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecx_R;
         if (Serial::DeserializeFromFile(DATAFOLDER + "/Encrypteddata.txt", ciphertextVecx_R, SerType::BINARY) == false) {
@@ -279,26 +312,50 @@ int main(int argc, const char * argv[]) {
         }
         std::cout << "The first ciphertext has been deserialized." << std::endl;
 
+        std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecResultW1;
         // Performs the LinearWSum of ciphertextVecx_R with W1 and outputs the results to output4
         for(unsigned i = 0; i < 128; ++i){
-            auto result = cc->EvalLinearWSum(ciphertextVecx_R, W1[i]);
-            Plaintext resultDecrypted;
-            cc->Decrypt(sk, result, &resultDecrypted);
-            output4 << resultDecrypted;
-            std::cout << "Calculated and decrypted line i=" << i << std::endl;
+            auto result1 = cc->EvalLinearWSum(ciphertextVecx_R, W1[i]);
+            auto approx1 = cc->EvalChebyshevFunction([](double x) -> double { return (x>0) ? x : 0; }, result1, 0, 5, 8);
+            ciphertextVecResultW1.push_back(approx1);
+            std::cout << "Decrypted and calculated line i="<< i << std::endl;
+            Plaintext resultDecrypted1;
+            Plaintext resultDecryptedRelu1;
+            cc->Decrypt(sk, result1, &resultDecrypted1);
+            output4 << resultDecrypted1;
+            cc->Decrypt(sk, approx1, &resultDecryptedRelu1);
+            output5 << resultDecryptedRelu1;
         }
 
-        // Does the same operation but with unencrypted data to check correct operation to output5
-        for(unsigned i1 = 0; i1 < 128; ++i1){
-            for (unsigned i2 = 0; i2 < 1000; ++i2) {
-                double x=0;
-                for (usint j = 0; j < 784; ++j) {
-                    x += X_train_T[j][i2] * W1[i1][j];
+        for(unsigned k=0; k<128; k++){
+            for (unsigned i = 0; i < size1; ++i) {
+            double x = 0;
+                for (unsigned j = 0; j < size2; ++j) {
+                    x += X_train_T[j][i] * W1[k][j];
                 }
-                output5 << x << "\t";
+            output8 << x << "\t";
             }
-            output5 << "\n";
+            output8 << "\n";
+        } 
+
+        std::cout << "First layer completed" << std::endl;
+
+        for(unsigned i = 0; i < 64; ++i){
+            auto result2 = cc->EvalLinearWSum(ciphertextVecResultW1, W2[i]);
+            std::cout << "LinearWSum completed" << i << std::endl;
+            auto approx2 = cc->EvalChebyshevFunction([](double x) -> double { return (x>0) ? x : 0; }, result2, 0, 5, 8);
+            /*
+            std::cout << "Decrypted and calculated line i="<< i << std::endl;
+            Plaintext resultDecrypted2;
+            Plaintext resultDecryptedRelu2;
+            cc->Decrypt(sk, result2, &resultDecrypted2);
+            output6 << resultDecrypted2;
+            cc->Decrypt(sk, approx2, &resultDecryptedRelu2);
+            output7 << resultDecryptedRelu2;
+            */
         }
+
+        std::cout << "Second layer completed" << std::endl;
 
     }
     else cout << "Unable to open file" << '\n';
