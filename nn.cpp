@@ -6,6 +6,8 @@
 //  Created by Sergei Bugrov on 4/20/18.
 //  Copyright © 2017 Sergei Bugrov. All rights reserved.
 //  Download dataset from: https://drive.google.com/file/d/1OdtwXHf_-2T0aS9HLBnxU3o-72mklCZY/view?usp=sharing
+//
+/* This code was modified to generate the 3 weight files */
 
 #include <iostream>
 #include <vector>
@@ -17,6 +19,10 @@
 #include <algorithm>
 
 using namespace std;
+
+const std::string DATAFOLDER = "Data";
+
+vector <float> operator/(const vector <float>& m2, const float m1);
 
 void print ( const vector <float>& m, int n_rows, int n_columns ) {
     
@@ -77,9 +83,9 @@ static vector<float> random_vector(const int size)
     return data;
 }
 
-vector <float> softmax (const vector <float>& z, const int dim) {
+vector <float> softmax (const vector <float>& z, const unsigned dim) {
     
-    const int zsize = static_cast<int>(z.size());
+    const unsigned zsize = static_cast<int>(z.size());
     vector <float> out;
     
     for (unsigned i = 0; i != zsize; i += dim) {
@@ -238,7 +244,7 @@ vector <float> operator/(const vector <float>& m2, const float m1){
     return product;
 }
 
-vector <float> transpose (float *m, const int C, const int R) {
+vector <float> transpose (float *m, const unsigned C, const unsigned R) {
     
     /*  Returns a transpose matrix of input matrix.
      Inputs:
@@ -296,6 +302,7 @@ vector<string> split(const string &s, char delim) {
     return tokens;
 }
 
+<<<<<<< HEAD:simple_cnn.cpp
 void accuracy_calc(const vector <float>&y, const vector <float>&y_hat){
 
 	int BATCH_SIZE=256;
@@ -321,6 +328,8 @@ void accuracy_calc(const vector <float>&y, const vector <float>&y_hat){
 	cout << "	Accuracy = " << (count/BATCH_SIZE)*100 << "% " << counter << " right answers" << "\n";
 }
 
+=======
+>>>>>>> 04d6564bf33e284514f7c06deb511e49f09802b6:nn.cpp
 int main(int argc, const char * argv[]) {
 
     string line;
@@ -329,15 +338,16 @@ int main(int argc, const char * argv[]) {
     cout << "Loading data ...\n";
     vector<float> X_train;
     vector<float> y_train;
-    vector<float> X_test;
-    vector<float> y_test;
-    ifstream myfile ("dataset/train.txt");
+    vector<vector<double>> w1_s;
+    vector<vector<double>> w2_s;
+    vector<vector<double>> w3_s;
+    ifstream myfile (DATAFOLDER + "/train.txt");
     if (myfile.is_open())
     {
         while ( getline (myfile,line) )
         {
             line_v = split(line, '\t');
-            int digit = strtof((line_v[0]).c_str(),0);
+            unsigned digit = strtof((line_v[0]).c_str(),0);
             for (unsigned i = 0; i < 10; ++i) {
                 if (i == digit)
                 {
@@ -346,42 +356,19 @@ int main(int argc, const char * argv[]) {
                 else y_train.push_back(0.);
             }
             
-            int size = static_cast<int>(line_v.size());
+            unsigned size = static_cast<int>(line_v.size());
             for (unsigned i = 1; i < size; ++i) {
                 X_train.push_back(strtof((line_v[i]).c_str(),0));
             }
         }
-        X_train = X_train/255.0;
+        X_train = operator/(X_train, 255.0);
         myfile.close();
     }
     
     else cout << "Unable to open file" << '\n';
-	
-    ifstream test_file ("dataset/test.txt");
-    if (test_file.is_open())
-    {
-        for(unsigned z=0; z<256; z++)
-	{
-            getline (test_file,line);
-            line_v = split(line, '\t');
-            int digit = strtof((line_v[0]).c_str(),0);
-            y_test.push_back(digit);
-            int size = static_cast<int>(line_v.size());
-            for (unsigned i = 1; i < size; ++i) {
-                X_test.push_back(strtof((line_v[i]).c_str(),0));
-            }
-        }
-        X_test = X_test/255.0;
-        test_file.close();
-    }
-    
-    else cout << "Unable to open file" << '\n';
-
-    int xsize = static_cast<int>(X_train.size());
-    int ysize = static_cast<int>(y_train.size());
     
     // Some hyperparameters for the NN
-    int BATCH_SIZE = 256;
+    unsigned BATCH_SIZE = 256;
     float lr = .01/BATCH_SIZE;
 
     // Random initialization of the weights
@@ -393,7 +380,7 @@ int main(int argc, const char * argv[]) {
     for (unsigned i = 0; i < 10000; ++i) {
 
         // Building batches of input variables (X) and labels (y)
-        int randindx = rand() % (60000-BATCH_SIZE);
+        unsigned randindx = rand() % (42000-BATCH_SIZE);
         vector<float> b_X;
         vector<float> b_y;
         for (unsigned j = randindx*784; j < (randindx+BATCH_SIZE)*784; ++j){
@@ -426,6 +413,7 @@ int main(int argc, const char * argv[]) {
         W2 = W2 - lr * dW2;
         W1 = W1 - lr * dW1;
 
+        
         if ((i+1) % 100 == 0){
             cout << "-----------------------------------------------Epoch " << i+1 << "--------------------------------------------------" <<"\n";
             cout << "Predictions:" << "\n";
@@ -438,12 +426,6 @@ int main(int argc, const char * argv[]) {
                 loss += loss_m[k]*loss_m[k];
             }
             cout << "                                            Loss " << loss/BATCH_SIZE <<"\n";
-        	// Feed forward
-       	 	vector<float> a1 = relu(dot( X_test, W1, BATCH_SIZE, 784, 128 ));
-        	vector<float> a2 = relu(dot( a1, W2, BATCH_SIZE, 128, 64 ));
-        	vector<float> yhat = softmax(dot( a2, W3, BATCH_SIZE, 64, 10 ), 10);
-		accuracy_calc(y_test, yhat);	
-
             cout << "--------------------------------------------End of Epoch :(------------------------------------------------" <<"\n";
         
 		if(i==9999)
@@ -466,8 +448,5 @@ int main(int argc, const char * argv[]) {
 		};
 	};
     };
-
-    
-
     return 0;
 }

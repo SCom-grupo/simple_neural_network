@@ -1,7 +1,10 @@
-# simple_neural_network
+# Encrypt
 
-Implements the neural network
+Encrypts data file and performs linearwsum
 
+## EncryptTeste
+
+Also outputs ExpectedResults file so that the correct operation can be checked
 
 ## Download mnist dataset
 
