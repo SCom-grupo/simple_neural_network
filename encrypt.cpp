@@ -1,3 +1,4 @@
+/* This code reads the weights from the weights files and the encrypted data and does the calculations*/
 #include "openfhe.h"
 
 // header files needed for serialization
@@ -48,6 +49,7 @@ int main(int argc, const char * argv[]) {
     cc->Enable(PKE);
     cc->Enable(KEYSWITCH);
     cc->Enable(LEVELEDSHE);
+    cc->Enable(ADVANCEDSHE);
     std::cout << "CKKS scheme is using ring dimension " << cc->GetRingDimension() << std::endl << std::endl;
 
     std::cout << "\nThe cryptocontext has been generated." << std::endl;
@@ -85,19 +87,28 @@ int main(int argc, const char * argv[]) {
     vector<string> line_v;
 
     cout << "Loading data ...\n";
-    ifstream input (DATAFOLDER + "/train.txt");
+    ifstream input (DATAFOLDER + "/test.txt");
+    ifstream inputW1 (DATAFOLDER + "/w1.txt");
+    ifstream inputW2 (DATAFOLDER + "/w2.txt");
+    ifstream inputW3 (DATAFOLDER + "/w3.txt");
     ofstream output1 (DATAFOLDER + "/Data.txt");
     ofstream output2 (DATAFOLDER + "/Label.txt");
     ofstream output3 (DATAFOLDER + "/DataRec.txt");
+    ofstream output4 (DATAFOLDER + "/Result.txt");
 
     // Initializing the vector of vectors
-    vector<vector<double> > X_train;
-    vector<vector<double> > y_train;
-    vector<vector<double> > X_train_T;
-    vector<vector<double> > y_train_T;
+    vector<vector<double>> X_train;
+    vector<vector<double>> y_train;
+    vector<vector<double>> X_train_T;
+    vector<vector<double>> y_train_T;
+
+    std::vector<std::vector<double>> W1;
+    std::vector<std::vector<double>> W2;
+    std::vector<std::vector<double>> W3;
 
     float calc;
     
+    // Reads the data and separates in labels (y_train) and bits (X_train)
     if (input.is_open())
     {
         while ( getline (input,line) )
@@ -125,7 +136,51 @@ int main(int argc, const char * argv[]) {
             X_train.push_back(tempx);
         }
         input.close();
+
+        // Reads the weight file W1
+        while ( getline (inputW1,line) )
+        {
+            line_v = split(line, '\t');
+            
+            vector<double>  tempw;
+            unsigned size = static_cast<int>(line_v.size());
+            for (unsigned i = 0; i < size; ++i) {
+                tempw.push_back(strtof((line_v[i]).c_str(),0)); 
+            }
+            W1.push_back(tempw);
+        }
+        inputW1.close();
+
+        // Reads the weight file W2
+        while ( getline (inputW2,line) )
+        {
+            line_v = split(line, '\t');
+            
+            vector<double>  tempw;
+            unsigned size = static_cast<int>(line_v.size());
+            for (unsigned i = 0; i < size; ++i) {
+                tempw.push_back(strtof((line_v[i]).c_str(),0));
+            }
+            W2.push_back(tempw);
+        }
+        inputW2.close();
+
+        // Reads the weight file W3
+        while ( getline (inputW3,line) )
+        {
+            line_v = split(line, '\t');
+            
+            vector<double>  tempw;
+            unsigned size = static_cast<int>(line_v.size());
+            for (unsigned i = 0; i < size; ++i) {
+                tempw.push_back(strtof((line_v[i]).c_str(),0));
+            }
+            W3.push_back(tempw);
+        }
+        inputW3.close();
         
+        // Transposes the bits matrix (X_train) so that in can be encrypted in columns
+        // Also outputs the transposed matrix to output1 for checking the correct operation
         unsigned size1 = static_cast<int>(X_train.size());
         unsigned size2 = static_cast<int>(X_train[0].size());
         for (unsigned i2 = 0; i2 < size2; ++i2) {
@@ -139,6 +194,8 @@ int main(int argc, const char * argv[]) {
             X_train_T.push_back(tempx_T);
         }
 
+        // Transposes the bits matrix (y_train) so that in can be encrypted in columns
+        // Also outputs the transposed matrix to output2 for checking the correct operation
         unsigned size3 = static_cast<int>(y_train.size());
         unsigned size4 = static_cast<int>(y_train[0].size());
         for (unsigned i2 = 0; i2 < size4; ++i2) {
@@ -152,12 +209,14 @@ int main(int argc, const char * argv[]) {
             y_train_T.push_back(tempy_T);
         }
 
+        // Encrypts the transposed matrix (X_train_T) in lines to ciphertextVecx
         std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecx;
         for (unsigned i = 0; i < size2; ++i) {
             Plaintext plaintext = cc->MakeCKKSPackedPlaintext(X_train_T[i]);
             ciphertextVecx.push_back(cc->Encrypt(keys.publicKey, plaintext));
         }
 
+        // Outputs the encrypted data to file /Encrypteddata.txt
         if (!Serial::SerializeToFile(DATAFOLDER + "/Encrypteddata.txt", ciphertextVecx, SerType::BINARY)) {
             std::cerr << "Error writing serialization of the encrypteddata to "
                      "Encrypteddata.txt"
@@ -166,12 +225,14 @@ int main(int argc, const char * argv[]) {
         }
         std::cout << "The encrypteddata has been serialized." << std::endl;
 
+        // Encrypts the transposed matrix (y_train_T) in lines to ciphertextVecy
         std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecy;
         for (unsigned i = 0; i < size4; ++i) {
             Plaintext plaintext = cc->MakeCKKSPackedPlaintext(y_train_T[i]);
             ciphertextVecy.push_back(cc->Encrypt(keys.publicKey, plaintext));
         }
 
+        // Outputs the encrypted labels to file /Encryptedlabel.txt
         if (!Serial::SerializeToFile(DATAFOLDER + "/Encryptedlabel.txt", ciphertextVecy, SerType::BINARY)) {
             std::cerr << "Error writing serialization of the encryptedlabel to "
                      "Encryptedlabel.txt"
@@ -180,10 +241,11 @@ int main(int argc, const char * argv[]) {
         }
         std::cout << "The encryptedlabel has been serialized." << std::endl;
 
+        // Clears cryptocontext to check correct functioning
         cc->ClearEvalMultKeys();
         lbcrypto::CryptoContextFactory<lbcrypto::DCRTPoly>::ReleaseAllContexts();
 
-        // Deserialize the crypto context
+        // Read the crypto context from file /cryptocontext.txt
         CryptoContext<DCRTPoly> cc;
         if (!Serial::DeserializeFromFile(DATAFOLDER + "/cryptocontext.txt", cc, SerType::BINARY)) {
             std::cerr << "I cannot read serialization from " << "cryptocontext.txt" << std::endl;
@@ -191,6 +253,7 @@ int main(int argc, const char * argv[]) {
         }
         std::cout << "The cryptocontext has been deserialized." << std::endl;
 
+        // Reads public key from file /key-public.txt
         PublicKey<DCRTPoly> pk;
         if (Serial::DeserializeFromFile(DATAFOLDER + "/key-public.txt", pk, SerType::BINARY) == false) {
             std::cerr << "Could not read public key" << std::endl;
@@ -198,6 +261,7 @@ int main(int argc, const char * argv[]) {
         }
         std::cout << "The public key has been deserialized." << std::endl;
 
+        // Reads private key from file /key-private.txt
         PrivateKey<DCRTPoly> sk;
         if (Serial::DeserializeFromFile(DATAFOLDER + "/key-private.txt", sk, SerType::BINARY) == false) {
             std::cerr << "Could not read secret key" << std::endl;
@@ -205,6 +269,7 @@ int main(int argc, const char * argv[]) {
         }
         std::cout << "The secret key has been deserialized." << std::endl;
 
+        // Reads encrypted data from file /Encrypteddata.txt
         std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecx_R;
         if (Serial::DeserializeFromFile(DATAFOLDER + "/Encrypteddata.txt", ciphertextVecx_R, SerType::BINARY) == false) {
             std::cerr << "Could not read the ciphertext" << std::endl;
@@ -212,10 +277,12 @@ int main(int argc, const char * argv[]) {
         }
         std::cout << "The first ciphertext has been deserialized." << std::endl;
 
-        for (unsigned i = 0; i < size2; ++i) {
-            Plaintext result;
-            cc->Decrypt(sk, ciphertextVecx_R[i], &result);
-            output3 << result;
+        // Performs the LinearWSum of ciphertextVecx_R with W1 and outputs the results to output4
+        for(unsigned i = 0; i < 128; ++i){
+            auto result = cc->EvalLinearWSum(ciphertextVecx_R, W1[i]);
+            Plaintext resultDecrypted;
+            cc->Decrypt(sk, result, &resultDecrypted);
+            output4 << resultDecrypted;
         }
 
     }
