@@ -69,7 +69,7 @@ int main(int argc, const char * argv[])
 		
 	uint32_t multDepth = 11;	// multiplication depth
 	uint32_t scaleModSize = 50;	// scale module
-    	uint32_t batchSize = 1<<10;	// batch size or how many slots per pack
+    	uint32_t batchSize = 1<<14;	// batch size or how many slots per pack
 
     	CCParams<CryptoContextCKKSRNS> parameters;
     	parameters.SetMultiplicativeDepth(multDepth);
@@ -212,7 +212,7 @@ int main(int argc, const char * argv[])
 
         unsigned size1 = static_cast<int>(X_train.size());
         unsigned size2 = static_cast<int>(X_train[0].size());
-	
+	/*	
     	ofstream output8 (DATAFOLDER + "/ExpectedResultW1.txt");
 	for(unsigned k=0; k<128; k++){
         	for (unsigned i = 0; i < size1; ++i) {
@@ -223,7 +223,7 @@ int main(int argc, const char * argv[])
                 	output8 << x << "\t";
                 }
                 output8 << "\n";
-        } 
+        } */
 
         std::cout << "expected shape: (128," << size1 << ")\n"<< std::endl;
 	cout << "Starting inference\n";
@@ -251,7 +251,7 @@ int main(int argc, const char * argv[])
         // Performs the LinearWSum of ciphertextVecx with W1 and outputs the results to output4
         for(unsigned i = 0; i < 128; ++i){
         	auto result = cc->EvalLinearWSum(ciphertextVecx, W1[i]);
-                auto approx = cc->EvalChebyshevFunction([](double x) -> double { return (x>0) ? x : 0; }, result, 0, 5, 5);
+                auto approx = cc->EvalChebyshevFunction([](double x) -> double { return (x>0) ? x : 0; }, result, -2, 15, 5);
 		ciphertextVecy.push_back(approx);
                 std::cout << "Decrypted and calculated line i="<< i << std::endl;
                 Plaintext resultDecrypted;
@@ -271,7 +271,7 @@ int main(int argc, const char * argv[])
     	ofstream output6 (DATAFOLDER + "/ResultReluW2.txt");
         for(unsigned i = 0; i < 64; ++i){
         	auto result = cc->EvalLinearWSum(ciphertextVecx, W2[i]);
-                auto approx = cc->EvalChebyshevFunction([](double x) -> double { return (x>0) ? x : 0; }, result, 0, 5, 5);
+                auto approx = cc->EvalChebyshevFunction([](double x) -> double { return (x>0) ? x : 0; }, result, -40, 36, 5);
                 Plaintext resultDecrypted;
                 cc->Decrypt(keys.secretKey, result, &resultDecrypted);
                 output5 << resultDecrypted;
