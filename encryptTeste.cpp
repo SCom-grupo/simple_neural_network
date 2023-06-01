@@ -89,7 +89,7 @@ vector<vector<double>> readFileNormalized (string filename){
 	return data;
 }
 
-vector<vector<double>> readFile (string filename){
+std::vector<std::vector<double>> readFile (string filename){
 	ifstream input (DATASETFOLDER + filename);
 
 	std::vector<std::vector<double>> data;
@@ -120,9 +120,9 @@ int main(int argc, const char * argv[])
     
 	// Create context and set its params
 		
-	uint32_t multDepth = 12;	// multiplication depth
+	uint32_t multDepth = 11;	// multiplication depth
 	uint32_t scaleModSize = 50;	// scale module
-    uint32_t batchSize = 1<<14;	// batch size or how many slots per pack
+    uint32_t batchSize = 1<<11;	// batch size or how many slots per pack
 
 	CCParams<CryptoContextCKKSRNS> parameters;
 	parameters.SetMultiplicativeDepth(multDepth);
@@ -168,19 +168,19 @@ int main(int argc, const char * argv[])
 	cout << "Loading data ...\n";
 
 	// Reads the features and puts them in X_train
-	vector<vector<double>> X_train=readFile ("/test_features.txt");
+	vector<vector<double>> X_train=readFileNormalized("/test_features.txt");
 	cout << "x_train loaded w/ shape: (" << X_train.size()<< ", " << X_train[0].size() << ")\n";
 
     // Reads the weight file W1
-	std::vector<std::vector<double>> W1=readFile ("/w1t.txt");
+	std::vector<std::vector<double>> W1=readFile("/w1t.txt");
 	cout << "W1 loaded w/ shape: (" << W1.size()<< ", " << W1[0].size() << ")\n";
 
 	// Reads the weight file W2
-	std::vector<std::vector<double>> W2=readFile ("/w2t.txt");
+	std::vector<std::vector<double>> W2=readFile("/w2t.txt");
 	cout << "W2 loaded w/ shape: (" << W2.size()<< ", " << W2[0].size() << ")\n";
 
 	// Reads the weight file W3
-	std::vector<std::vector<double>> W3=readFile ("/w3t.txt");
+	std::vector<std::vector<double>> W3=readFile("/w3t.txt");
 	cout << "W3 loaded w/ shape: (" << W3.size()<< ", " << W3[0].size() << ")\n";
 
 	unsigned size2 = static_cast<int>(X_train[0].size());
