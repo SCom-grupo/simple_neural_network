@@ -41,9 +41,11 @@ void accuracy_calc(const vector <double>&y, const vector< vector <double>>&y_hat
 vector<vector<double>> readFileNormalized (string filename);
 
 int main(int argc, const char * argv[])
-{
+{       
+        
+cout << "Program name is: " << argv[0] << endl;
 
-	 if (argc < 2) {
+    if (argc < 2) {
         std::cout << "No extra Command Line Argument passed" << std::endl;
         return 1;
     }
