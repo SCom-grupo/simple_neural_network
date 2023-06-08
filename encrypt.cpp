@@ -59,34 +59,7 @@ void accuracy_calc(const vector <double>&y, const vector< vector <double>>&y_hat
                 max_save.push_back(index);
         };
         float count = counter;
-        cout << "       Accuracy = " << (count/BATCH_SIZE)*100 << "% " << counter << " right answers" << "\n";
-}
-
-vector<vector<double>> readFileNormalized (string filename){
-	ifstream input (DATASETFOLDER + filename);
-	float calc;
-
-	vector<vector<double>> data;
-	if(input.is_open())
-	{
-		string line;
-		vector<string> line_v;
-		while (getline (input,line) )
-	 	{
-			line_v = split(line, '\t');
-			vector<double>  temp;
-			unsigned size = static_cast<int>(line_v.size());
-			for (unsigned i = 0; i < size; ++i) {
-				calc=strtof((line_v[i]).c_str(),0);
-				temp.push_back(calc/255.0);
-			}
-			data.push_back(temp);
-		}
-	}
-	else cout << "Unable to open file" << '\n';
-	input.close();
-
-	return data;
+        cout << "       Accuracy = " << (count/BATCH_SIZE)*100 << "% " << counter << " right answers" << std::endl;
 }
 
 std::vector<std::vector<double>> readFile (string filename){
@@ -109,10 +82,25 @@ std::vector<std::vector<double>> readFile (string filename){
 			data.push_back(temp);
 		}
 	}
-	else cout << "Unable to open file" << '\n';
+	else cout << "Unable to open file" << std::endl;
 	input.close();
 
 	return data;
+}
+
+std::vector<ConstCiphertext<DCRTPoly>> chebyFunc(CryptoContext<DCRTPoly> cc, std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecx, std::vector<std::vector<double>> W, unsigned NumWeightLines, int lowerbound, int upperbound, int degree){
+	std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecy;
+
+	int progress=NumWeightLines-1;
+	// Performs the LinearWSum of ciphertextVecx with W
+	for(unsigned i = 0; i < NumWeightLines; ++i){
+		auto result = cc->EvalLinearWSum(ciphertextVecx, W[i]);
+		auto approx = cc->EvalChebyshevFunction([](double x) -> double { return (x>0) ? x : 0; }, result, lowerbound, upperbound, degree);
+		ciphertextVecy.push_back(approx);
+		std::cout << "Calculated line i="<< i << "/" << progress << std::endl;
+	}
+
+	return ciphertextVecy;
 }
 
 int main(int argc, const char * argv[])
@@ -122,7 +110,7 @@ int main(int argc, const char * argv[])
 		
 	uint32_t multDepth = 11;	// multiplication depth
 	uint32_t scaleModSize = 50;	// scale module
-    uint32_t batchSize = 1<<11;	// batch size or how many slots per pack
+    uint32_t batchSize = 1<<14;	// batch size or how many slots per pack
 
 	CCParams<CryptoContextCKKSRNS> parameters;
 	parameters.SetMultiplicativeDepth(multDepth);
@@ -139,9 +127,9 @@ int main(int argc, const char * argv[])
 	cc->Enable(LEVELEDSHE);
 	cc->Enable(ADVANCEDSHE);
 
-	std::cout << "CKKS scheme is using ring dimension " << cc->GetRingDimension() << std::endl << std::endl;
+	std::cout << "CKKS scheme is using ring dimension " << cc->GetRingDimension() << std::endl;
 
-	std::cout << "\nThe cryptocontext has been generated." << std::endl;
+	std::cout <<  std::endl << "The cryptocontext has been generated." << std::endl;
 
 	// Serialize cryptocontext
 	if (!Serial::SerializeToFile(DATAFOLDER + "/cryptocontext.txt", cc, SerType::BINARY)) {
@@ -156,38 +144,58 @@ int main(int argc, const char * argv[])
 
 	std::cout << "The key pair has been generated." << std::endl;
 
-	// Serialize the public key
-	if (!Serial::SerializeToFile(DATAFOLDER + "/key-public.txt", keys.publicKey, SerType::BINARY)) {
+	// Serialize the private key
+	if (!Serial::SerializeToFile(DATAFOLDER + "/key-private.txt", keys.secretKey, SerType::BINARY)) {
 		std::cerr << "Error writing serialization of public key to key-public.txt" << std::endl;
 		return 1;
 	}
-	std::cout << "The public key has been serialized." << std::endl;
+	std::cout << "The private key has been serialized." << std::endl;
 
-	cc->EvalMultKeyGen(keys.secretKey);
+	// Generate the relinearization key
+    cc->EvalMultKeyGen(keys.secretKey);
 
-	cout << "Loading data ...\n";
+	// Serialize the relinearization (evaluation) key for homomorphic
+    // multiplication
+    std::ofstream emkeyfile(DATAFOLDER + "/" + "key-eval-mult.txt", std::ios::out | std::ios::binary);
+    if (emkeyfile.is_open()) {
+        if (cc->SerializeEvalMultKey(emkeyfile, SerType::BINARY) == false) {
+            std::cerr << "Error writing serialization of the eval mult keys to "
+                         "key-eval-mult.txt"
+                      << std::endl;
+            return 1;
+        }
+        std::cout << "The eval mult keys have been serialized." << std::endl;
+
+        emkeyfile.close();
+    }
+    else {
+        std::cerr << "Error serializing eval mult keys" << std::endl;
+        return 1;
+    }
+
+	cout << "Loading data ..." << std::endl;
 
 	// Reads the features and puts them in X_train
-	vector<vector<double>> X_train=readFileNormalized("/test_features.txt");
-	cout << "x_train loaded w/ shape: (" << X_train.size()<< ", " << X_train[0].size() << ")\n";
+	vector<vector<double>> X_train=readFile("/test_features.txt");
+	cout << "x_train loaded w/ shape: (" << X_train.size()<< ", " << X_train[0].size() << ")" << std::endl;;
 
     // Reads the weight file W1
-	std::vector<std::vector<double>> W1=readFile("/w1t.txt");
-	cout << "W1 loaded w/ shape: (" << W1.size()<< ", " << W1[0].size() << ")\n";
+	std::vector<std::vector<double>> W1=readFile("/w1.txt");
+	cout << "W1 loaded w/ shape: (" << W1.size()<< ", " << W1[0].size() << ")" << std::endl;;
 
 	// Reads the weight file W2
-	std::vector<std::vector<double>> W2=readFile("/w2t.txt");
-	cout << "W2 loaded w/ shape: (" << W2.size()<< ", " << W2[0].size() << ")\n";
+	std::vector<std::vector<double>> W2=readFile("/w2.txt");
+	cout << "W2 loaded w/ shape: (" << W2.size()<< ", " << W2[0].size() << ")" << std::endl;;
 
 	// Reads the weight file W3
-	std::vector<std::vector<double>> W3=readFile("/w3t.txt");
-	cout << "W3 loaded w/ shape: (" << W3.size()<< ", " << W3[0].size() << ")\n";
+	std::vector<std::vector<double>> W3=readFile("/w3.txt");
+	cout << "W3 loaded w/ shape: (" << W3.size()<< ", " << W3[0].size() << ")" << std::endl;;
 
 	unsigned size2 = static_cast<int>(X_train[0].size());
 	
-	cout << "Starting inference\n";
- 	cout << size2 << "\n";
-	// Encrypts the transposed matrix (X_train_T) in lines to ciphertextVecx
+	cout << "Starting inference" << std::endl;
+ 	cout << size2 << std::endl;
+	// Encrypts the transposed matrix (X_train) in lines to ciphertextVecx
 	std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecx;
 	for (unsigned i = 0; i < X_train.size(); ++i)
 	{
@@ -196,64 +204,109 @@ int main(int argc, const char * argv[])
 		X_train[i].clear();
 		X_train[i].shrink_to_fit();
 	}
-	cout << "X_train packed and Encrypted\n";
+	cout << "X_train packed and Encrypted" << std::endl;
 	X_train.clear();
 	X_train.shrink_to_fit();
+
+	if (!Serial::SerializeToFile(DATAFOLDER + "/" + "encryptedfeatures.txt", ciphertextVecx, SerType::BINARY)) {
+        std::cerr << "Error writing serialization of ciphertextVecx to encryptedfeatures.txt" << std::endl;
+        return 1;
+    }
+    std::cout << "ciphertextVecx has been serialized." << std::endl;
+	ciphertextVecx.clear();
+	ciphertextVecx.shrink_to_fit();
+
+	// Clearing keys and contex
+	cc->ClearEvalMultKeys();
+	lbcrypto::CryptoContextFactory<lbcrypto::DCRTPoly>::ReleaseAllContexts();
+	std::cout << "Context cleared!" << std::endl;
 
 	// Reads encrypted data from file /Encrypteddata.txt
 	std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecy;
 
-	// Performs the LinearWSum of ciphertextVecx with W1 and outputs the results to output4
-	for(unsigned i = 0; i < 128; ++i){
-		auto result = cc->EvalLinearWSum(ciphertextVecx, W1[i]);
-		auto approx = cc->EvalChebyshevFunction([](double x) -> double { return (x>0) ? x : 0; }, result, -2, 15, 5);
-		ciphertextVecy.push_back(approx);
-		std::cout << "Decrypted and calculated line i="<< i << std::endl;
-	}
+	// Deserialize the crypto context
+    if (!Serial::DeserializeFromFile(DATAFOLDER + "/cryptocontext.txt", cc, SerType::BINARY)) {
+        std::cerr << "I cannot read serialization from " << DATAFOLDER + "/cryptocontext.txt" << std::endl;
+        return 1;
+    }
+    std::cout << "The cryptocontext has been deserialized." << std::endl;
+
+	// Deserialize the mult key
+	std::ifstream emkeys(DATAFOLDER + "/key-eval-mult.txt", std::ios::in | std::ios::binary);
+    if (!emkeys.is_open()) {
+        std::cerr << "I cannot read serialization from " << DATAFOLDER + "/key-eval-mult.txt" << std::endl;
+        return 1;
+    }
+    if (cc->DeserializeEvalMultKey(emkeys, SerType::BINARY) == false) {
+        std::cerr << "Could not deserialize the eval mult key file" << std::endl;
+        return 1;
+    }
+    std::cout << "Deserialized the eval mult keys." << std::endl;
+
+	// Deserialize the features
+	if (Serial::DeserializeFromFile(DATAFOLDER + "/" + "encryptedfeatures.txt", ciphertextVecx, SerType::BINARY) == false) {
+        std::cerr << "Could not read ciphertextVec" << std::endl;
+        return 1;
+    }
+    std::cout << "ciphertextVecx has been deserialized." << std::endl;
+
+	// Perform first layer
+	ciphertextVecy=chebyFunc(cc, ciphertextVecx, W1, 128, -2, 15, 5);
 	ciphertextVecx = ciphertextVecy;
 	ciphertextVecy.clear();
 	ciphertextVecy.shrink_to_fit();
 	ciphertextVecx.shrink_to_fit();
-	cout << "First Layer Completed\n";	
+	cout << "First Layer Completed" << std::endl;	
 
-	for(unsigned i = 0; i < 64; ++i){
-		auto result = cc->EvalLinearWSum(ciphertextVecx, W2[i]);
-		auto approx = cc->EvalChebyshevFunction([](double x) -> double { return (x>0) ? x : 0; }, result, -40, 36, 5);
-		ciphertextVecy.push_back(approx);
-		std::cout << "Decrypted and calculated line i="<< i << std::endl;
-	}
+	// Perform second layer
+	ciphertextVecy=chebyFunc(cc, ciphertextVecx, W2, 64, -40, 36, 5);
 	ciphertextVecx = ciphertextVecy;
 	ciphertextVecy.clear();
 	ciphertextVecy.shrink_to_fit();
 	ciphertextVecx.shrink_to_fit();
-
 	std::cout << "Second layer completed" << std::endl;
 
-	std::vector<std::vector<double>> classes;
-	ofstream output7 (DATAFOLDER + "/ResultW3.txt");
+	// Perform Third layer
 	for(unsigned i = 0; i < 10; ++i){
 		auto result = cc->EvalLinearWSum(ciphertextVecx, W3[i]);
+		ciphertextVecy.push_back(result);
+		
+		std::cout << "Calculated line i="<< i << "/9" << std::endl;
+	}
+	ciphertextVecx = ciphertextVecy;
+	ciphertextVecy.clear();
+	ciphertextVecy.shrink_to_fit();
+	ciphertextVecx.shrink_to_fit();
+	std::cout << "Third layer completed" << std::endl;
+
+	// Deserialize secret key
+	PrivateKey<DCRTPoly> sk;
+    if (Serial::DeserializeFromFile(DATAFOLDER + "/key-private.txt", sk, SerType::BINARY) == false) {
+        std::cerr << "Could not read secret key" << std::endl;
+        return 1;
+    }
+    std::cout << "The secret key has been deserialized." << std::endl;
+
+	// Decrypt results
+	std::vector<std::vector<double>> classes;
+	for(unsigned i = 0; i < 10; ++i){
 		Plaintext resultDecrypted;
-		cc->Decrypt(keys.secretKey, result, &resultDecrypted);
-		std::cout << "LinearWSum completed" << std::endl;
+		cc->Decrypt(sk, ciphertextVecx[i], &resultDecrypted);
 		std::vector<std::complex<double>> finalResult = resultDecrypted->GetCKKSPackedValue();
 		std::vector<double> tempy;
 		for(unsigned j = 0; j < finalResult.size(); j++)
 		{
 			tempy.push_back(finalResult[j].real());
-			output7 << finalResult[j].real() << "\t";
 		}
-	output7 << "\n";
-	classes.push_back(tempy);
-		std::cout << "Decrypted and calculated line i="<< i << std::endl;
+		classes.push_back(tempy);
+		std::cout << "Decrypted line i="<< i << "/9" << std::endl;
 	}
-	cout << "out has shape: (" << classes.size() << ", " << classes[0].size() << ")\n";
+	cout << "out has shape: (" << classes.size() << ", " << classes[0].size() << ")"<< std::endl;
 	ciphertextVecy.clear();
 	ciphertextVecx.clear();
 	ciphertextVecx.shrink_to_fit();
-
-	std::cout << "Third layer completed" << std::endl;
     
+	// Check accuracy
 	ifstream input_labels (DATASETFOLDER + "/test_labels.txt");
 	vector<double> y_train;
     
@@ -268,9 +321,9 @@ int main(int argc, const char * argv[])
 			unsigned digit = strtof((line_v[0]).c_str(),0);
 			y_train.push_back(digit);
 		}
-		cout << "y_train loaded w/ shape: " << y_train.size() << "\n";
+		cout << "y_train loaded w/ shape: " << y_train.size() << std::endl;
 	}
-	else cout << "Unable to open file" << '\n';
+	else cout << "Unable to open file" << std::endl;
     input_labels.close();
 	accuracy_calc(y_train, classes, size2);
 }

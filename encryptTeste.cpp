@@ -62,33 +62,6 @@ void accuracy_calc(const vector <double>&y, const vector< vector <double>>&y_hat
         cout << "       Accuracy = " << (count/BATCH_SIZE)*100 << "% " << counter << " right answers" << "\n";
 }
 
-vector<vector<double>> readFileNormalized (string filename){
-	ifstream input (DATASETFOLDER + filename);
-	float calc;
-
-	vector<vector<double>> data;
-	if(input.is_open())
-	{
-		string line;
-		vector<string> line_v;
-		while (getline (input,line) )
-	 	{
-			line_v = split(line, '\t');
-			vector<double>  temp;
-			unsigned size = static_cast<int>(line_v.size());
-			for (unsigned i = 0; i < size; ++i) {
-				calc=strtof((line_v[i]).c_str(),0);
-				temp.push_back(calc/255.0);
-			}
-			data.push_back(temp);
-		}
-	}
-	else cout << "Unable to open file" << '\n';
-	input.close();
-
-	return data;
-}
-
 std::vector<std::vector<double>> readFile (string filename){
 	ifstream input (DATASETFOLDER + filename);
 
@@ -113,6 +86,31 @@ std::vector<std::vector<double>> readFile (string filename){
 	input.close();
 
 	return data;
+}
+
+std::vector<ConstCiphertext<DCRTPoly>> chebyFuncTeste(CryptoContext<DCRTPoly> cc, KeyPair<DCRTPoly> keys, std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecx, std::vector<std::vector<double>> W, unsigned NumWeightLines, int lowerbound, int upperbound, int degree, string ResultW1Filename, string ResultReluFilename){
+	std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecy;
+	ofstream output1 (DATAFOLDER + ResultW1Filename);
+	ofstream output2 (DATAFOLDER + ResultReluFilename);
+
+	int progress=NumWeightLines-1;
+	// Performs the LinearWSum of ciphertextVecx with W and outputs the results
+	for(unsigned i = 0; i < NumWeightLines; ++i){
+		auto result = cc->EvalLinearWSum(ciphertextVecx, W[i]);
+		auto approx = cc->EvalChebyshevFunction([](double x) -> double { return (x>0) ? x : 0; }, result, lowerbound, upperbound, degree);
+		ciphertextVecy.push_back(approx);
+		std::cout << "Decrypted and calculated line i="<< i << "/" << progress << std::endl;
+		Plaintext resultDecrypted;
+		Plaintext resultDecryptedRelu;
+		cc->Decrypt(keys.secretKey, result, &resultDecrypted);
+		output1 << resultDecrypted;
+		cc->Decrypt(keys.secretKey, approx, &resultDecryptedRelu);
+		output2 << resultDecryptedRelu;
+	}
+	output1.close();
+	output2.close();
+
+	return ciphertextVecy;
 }
 
 int main(int argc, const char * argv[])
@@ -163,24 +161,44 @@ int main(int argc, const char * argv[])
 	}
 	std::cout << "The public key has been serialized." << std::endl;
 
-	cc->EvalMultKeyGen(keys.secretKey);
+	// Generate the relinearization key
+    cc->EvalMultKeyGen(keys.secretKey);
+
+	// Serialize the relinearization (evaluation) key for homomorphic
+    // multiplication
+    std::ofstream emkeyfile(DATAFOLDER + "/" + "key-eval-mult.txt", std::ios::out | std::ios::binary);
+    if (emkeyfile.is_open()) {
+        if (cryptoContext->SerializeEvalMultKey(emkeyfile, SerType::BINARY) == false) {
+            std::cerr << "Error writing serialization of the eval mult keys to "
+                         "key-eval-mult.txt"
+                      << std::endl;
+            return 1;
+        }
+        std::cout << "The eval mult keys have been serialized." << std::endl;
+
+        emkeyfile.close();
+    }
+    else {
+        std::cerr << "Error serializing eval mult keys" << std::endl;
+        return 1;
+    }
 
 	cout << "Loading data ...\n";
 
 	// Reads the features and puts them in X_train
-	vector<vector<double>> X_train=readFileNormalized("/test_features.txt");
+	vector<vector<double>> X_train=readFile("/test_features.txt");
 	cout << "x_train loaded w/ shape: (" << X_train.size()<< ", " << X_train[0].size() << ")\n";
 
     // Reads the weight file W1
-	std::vector<std::vector<double>> W1=readFile("/w1t.txt");
+	std::vector<std::vector<double>> W1=readFile("/w1.txt");
 	cout << "W1 loaded w/ shape: (" << W1.size()<< ", " << W1[0].size() << ")\n";
 
 	// Reads the weight file W2
-	std::vector<std::vector<double>> W2=readFile("/w2t.txt");
+	std::vector<std::vector<double>> W2=readFile("/w2.txt");
 	cout << "W2 loaded w/ shape: (" << W2.size()<< ", " << W2[0].size() << ")\n";
 
 	// Reads the weight file W3
-	std::vector<std::vector<double>> W3=readFile("/w3t.txt");
+	std::vector<std::vector<double>> W3=readFile("/w3.txt");
 	cout << "W3 loaded w/ shape: (" << W3.size()<< ", " << W3[0].size() << ")\n";
 
 	unsigned size2 = static_cast<int>(X_train[0].size());
@@ -200,49 +218,20 @@ int main(int argc, const char * argv[])
 	X_train.clear();
 	X_train.shrink_to_fit();
 
-	// Reads encrypted data from file /Encrypteddata.txt
 	std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecy;
-	ofstream output3 (DATAFOLDER + "/ResultW1.txt");
-	ofstream output4 (DATAFOLDER + "/ResultReluW1.txt");
-
-	// Performs the LinearWSum of ciphertextVecx with W1 and outputs the results to output4
-	for(unsigned i = 0; i < 128; ++i){
-		auto result = cc->EvalLinearWSum(ciphertextVecx, W1[i]);
-		auto approx = cc->EvalChebyshevFunction([](double x) -> double { return (x>0) ? x : 0; }, result, -2, 15, 5);
-		ciphertextVecy.push_back(approx);
-		std::cout << "Decrypted and calculated line i="<< i << std::endl;
-		Plaintext resultDecrypted;
-		Plaintext resultDecryptedRelu;
-		cc->Decrypt(keys.secretKey, result, &resultDecrypted);
-		output3 << resultDecrypted;
-		cc->Decrypt(keys.secretKey, approx, &resultDecryptedRelu);
-		output4 << resultDecryptedRelu;
-	}
+	
+	ciphertextVecy=chebyFuncTeste(cc, keys, ciphertextVecx, W1, 128, -2, 15, 5, "/ResultW1.txt", "/ResultReluW1.txt");
 	ciphertextVecx = ciphertextVecy;
 	ciphertextVecy.clear();
 	ciphertextVecy.shrink_to_fit();
 	ciphertextVecx.shrink_to_fit();
 	cout << "First Layer Completed\n";	
 
-	ofstream output5 (DATAFOLDER + "/ResultW2.txt");
-	ofstream output6 (DATAFOLDER + "/ResultReluW2.txt");
-	for(unsigned i = 0; i < 64; ++i){
-		auto result = cc->EvalLinearWSum(ciphertextVecx, W2[i]);
-		auto approx = cc->EvalChebyshevFunction([](double x) -> double { return (x>0) ? x : 0; }, result, -40, 36, 5);
-		Plaintext resultDecrypted;
-		cc->Decrypt(keys.secretKey, result, &resultDecrypted);
-		output5 << resultDecrypted;
-		ciphertextVecy.push_back(approx);
-		std::cout << "Decrypted and calculated line i="<< i << std::endl;
-		Plaintext resultDecryptedRelu;
-		cc->Decrypt(keys.secretKey, approx, &resultDecryptedRelu);
-		output6 << resultDecryptedRelu;
-	}
+	ciphertextVecy=chebyFuncTeste(cc, keys, ciphertextVecx, W2, 64, -40, 36, 5, "/ResultW2.txt", "/ResultReluW2.txt");
 	ciphertextVecx = ciphertextVecy;
 	ciphertextVecy.clear();
 	ciphertextVecy.shrink_to_fit();
 	ciphertextVecx.shrink_to_fit();
-
 	std::cout << "Second layer completed" << std::endl;
 
 	std::vector<std::vector<double>> classes;
@@ -251,7 +240,6 @@ int main(int argc, const char * argv[])
 		auto result = cc->EvalLinearWSum(ciphertextVecx, W3[i]);
 		Plaintext resultDecrypted;
 		cc->Decrypt(keys.secretKey, result, &resultDecrypted);
-		std::cout << "LinearWSum completed" << std::endl;
 		std::vector<std::complex<double>> finalResult = resultDecrypted->GetCKKSPackedValue();
 		std::vector<double> tempy;
 		for(unsigned j = 0; j < finalResult.size(); j++)
@@ -259,15 +247,14 @@ int main(int argc, const char * argv[])
 			tempy.push_back(finalResult[j].real());
 			output7 << finalResult[j].real() << "\t";
 		}
-	output7 << "\n";
-	classes.push_back(tempy);
-		std::cout << "Decrypted and calculated line i="<< i << std::endl;
+		output7 << "\n";
+		classes.push_back(tempy);
+		std::cout << "Decrypted and calculated line i="<< i << "/9" << std::endl;
 	}
 	cout << "out has shape: (" << classes.size() << ", " << classes[0].size() << ")\n";
 	ciphertextVecy.clear();
 	ciphertextVecx.clear();
 	ciphertextVecx.shrink_to_fit();
-
 	std::cout << "Third layer completed" << std::endl;
     
 	ifstream input_labels (DATASETFOLDER + "/test_labels.txt");

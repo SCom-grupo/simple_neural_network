@@ -163,9 +163,9 @@ def main(epochs=25, learning_rate=0.001, act='relu'):
         # print("test accuracy:", test_accs[-1])
         print("test accuracy:",model.evaluate(ev_X, ev_y))
 
-    np.savetxt('../dataset/w1.txt', np.transpose(model.weights_1), fmt='%f', delimiter='\t')
-    np.savetxt('../dataset/w2.txt', np.transpose(model.weights_2), fmt='%f', delimiter='\t')
-    np.savetxt('../dataset/w3.txt', np.transpose(model.weights_3), fmt='%f', delimiter='\t')
+    np.savetxt('./dataset/w1.txt', np.transpose(model.weights_1), fmt='%f', delimiter='\t')
+    np.savetxt('./dataset/w2.txt', np.transpose(model.weights_2), fmt='%f', delimiter='\t')
+    np.savetxt('./dataset/w3.txt', np.transpose(model.weights_3), fmt='%f', delimiter='\t')
 
 if __name__=='__main__':
     if len(argv)!=4:
