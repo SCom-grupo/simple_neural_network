@@ -34,47 +34,104 @@ const std::string DATASETFOLDER = "../dataset";
 #include <unistd.h>
 
 
+
 vector<string> split(const string &s, char delim);
 
 void accuracy_calc(const vector <double>&y, const vector< vector <double>>&y_hat, unsigned data_size);
 
-vector<vector<double>> readFileNormalized (string filename);
+vector<vector<double>> readFile(string filename);
+
+void SerializeCryptoContext(CryptoContext<DCRTPoly> cc, KeyPair<DCRTPoly> keys);	
+
+void packEncrypt(vector<vector<double>> data);
 
 int main(int argc, const char * argv[])
 {
 
-	 if (argc < 2) {
-        std::cout << "No extra Command Line Argument passed" << std::endl;
-        return 1;
-    }
-
+	if (argc < 2)
+	{
+		printErrorMess();
+		return 0;
+	}
     switch (argv[1][0]) {
         case 'e':
-            std::cout << "Function Encrypt." << std::endl;
-            break;
+		// Create context and set its params
+		
+		uint32_t multDepth = 11;	// multiplication depth
+		uint32_t scaleModSize = 50;	// scale module
+    		uint32_t batchSize = 1<<14;	// batch size or how many slots per pack
+
+		CCParams<CryptoContextCKKSRNS> parameters;
+		parameters.SetMultiplicativeDepth(multDepth);
+		parameters.SetScalingModSize(scaleModSize);
+		parameters.SetBatchSize(batchSize);
+		parameters.SetScalingTechnique(FLEXIBLEAUTO);
+		parameters.SetSecurityLevel(HEStd_128_classic);
+
+		CryptoContext<DCRTPoly> cc = GenCryptoContext(parameters);
+
+		// Enable the features that you wish to use
+		cc->Enable(PKE);
+		cc->Enable(KEYSWITCH);
+		cc->Enable(LEVELEDSHE);
+		cc->Enable(ADVANCEDSHE);
+
+		std::cout << "CKKS scheme is using ring dimension " << cc->GetRingDimension() << std::endl;
+
+		std::cout <<  std::endl << "The cryptocontext has been generated." << std::endl;
+		
+		// Generate public-secret key pair
+		KeyPair<DCRTPoly> keys = cc->KeyGen();
+	    	
+		// Generate the relinearization key
+    		cc->EvalMultKeyGen(keys.secretKey);
+	
+		SerializeCryptoContext(cc, keys);	
+		
+
+
+		char *args[] = { (char *)"./../dataset/download_mnist.py", (char*)NULL};
+	    	int i = execvp(args[0], args);
+	    	if(i!=0) perror("Error running downloader script:");
+	     
+	    	vector<vector<double>> features = readFile("test_features.txt");
+	    	cout << "x_train loaded w/ shape: (" << X_train.size()<< ", " << X_train[0].size() << ")\n";
+	    
+	    	packEncrypt(X_train); 
+	    	break;
         case 'd':
-            std::cout << "Function Descrypt." << std::endl;
+            std::cout << "Function Decrypt." << std::endl;
             break;
         case 'i':
             std::cout << "Function Inference." << std::endl;
+
             break;
          case 't':
-            std::cout << "Function Training." << std::endl;
+	    /*
+	     * Add activation function checks
+	     * */
+	    char *args[] = { (char *)"./../train.py", (char*)"25", (char*) "0.001", (char*) "relu", (char *) NULL};
+            execvp(args[0], args);
+	    perror("exec error:");
             break;
         default:
-            std::cout << "Don't exist this Function." << std::endl;
+	    printErrorMess();
             break;
-    }
-
-    for (int i = 0; i < argc; i++) {
-            cout << "argv[" << i << "]: " << argv[i]
-                 << '\n';
-        }
 	
+    	}
 	return 0;	
 
 }
 
+/*
+ * An helper function to explain the program usage
+ * */
+void printErrorMess()
+{
+        	std::cout << "Program usage: ./encrypt <mode>" << std::endl;
+        	std::cout << "Modes:"<< std::endl;
+        	return 1;
+}
 
 /*
  * split
@@ -151,7 +208,7 @@ void accuracy_calc(const vector <double>&y, const vector< vector <double>>&y_hat
  * 
  * */
 
-vector<vector<double>> readaFile(string filename){
+vector<vector<double>> readFile(string filename){
 	ifstream input (DATASETFOLDER + filename);
 
 	vector<vector<double>> data;
@@ -174,4 +231,83 @@ vector<vector<double>> readaFile(string filename){
 	input.close();
 
 	return data;
+}
+
+/*
+ * packEncrypt 
+ * args: data - matrix saving the various data elements, for optimal
+ * computation should have shape(n_elements, n_features)
+ *
+ * returns: a vector with the encrypted ciphertexts 
+ * 
+ * description: Packs data in ckks vectors, the encrypts it
+ * 
+ * */
+
+void packEncrypt(vector<vector<double>> data)
+{	
+	std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecx;
+	for (unsigned i = 0; i < data.size(); ++i)
+	{
+        	Plaintext plaintext = cc->MakeCKKSPackedPlaintext(data[i]);
+        	ciphertextVecx.push_back(cc->Encrypt(keys.publicKey, plaintext));
+		data[i].clear();
+		data[i].shrink_to_fit();
+	}
+	
+	if (!Serial::SerializeToFile(DATAFOLDER + "/" + "encryptedfeatures.txt", ciphertextVecx, SerType::BINARY))
+       	{
+        	std::cerr << "Error writing serialization of ciphertextVecx to encryptedfeatures.txt" << std::endl;
+        	exit(1);
+	}
+
+	cout << "X_train packed, encrypted and serialized to " + DATAFOLDER+"/encryptedfeatures.txt\n";
+	return;	
+}
+
+
+void SerializeCryptoContext(CryptoContext<DCRTPoly> cc, KeyPair<DCRTPoly> keys)
+{
+
+		
+		// Serialize cryptocontext
+		if (!Serial::SerializeToFile(DATAFOLDER + "/cryptocontext.txt", cc, SerType::BINARY))
+	       	{
+			std::cerr << "Error writing serialization of the crypto context to "
+					"cryptocontext.txt"
+				<< std::endl;
+			return 1;
+		}
+		std::cout << "The cryptocontext has been serialized." << std::endl;
+
+
+		std::cout << "The key pair has been generated." << std::endl;
+
+		// Serialize the private key
+		if (!Serial::SerializeToFile(DATAFOLDER + "/key-private.txt", keys.secretKey, SerType::BINARY)) {
+			std::cerr << "Error writing serialization of public key to key-public.txt" << std::endl;
+			return 1;
+		}
+		std::cout << "The private key has been serialized." << std::endl;
+
+
+		// Serialize the relinearization (evaluation) key for homomorphic
+    		// multiplication
+    		std::ofstream emkeyfile(DATAFOLDER + "/" + "key-eval-mult.txt", std::ios::out | std::ios::binary);
+    		if (emkeyfile.is_open())
+	       	{
+        		if (cc->SerializeEvalMultKey(emkeyfile, SerType::BINARY) == false) {
+            		std::cerr << "Error writing serialization of the eval mult keys to "
+                         "key-eval-mult.txt"
+                      	<< std::endl;
+            		return 1;
+        	}
+        	std::cout << "The eval mult keys have been serialized." << std::endl;
+
+        	emkeyfile.close();
+    		}
+    		else {
+        		std::cerr << "Error serializing eval mult keys" << std::endl;
+        		return 1;
+    		}
 }
