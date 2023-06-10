@@ -95,7 +95,7 @@ int main(int argc, const char * argv[])
 			
 		SerializeCryptoContext(cc, keys);	
 	     
-	    	vector<vector<double>> features = readFile("test_features.txt");
+	    	vector<vector<double>> features = readFile("/test_features.txt");
 	    	cout << "x_train loaded w/ shape: (" << features.size()<< ", " << features[0].size() << ")\n";
 	    
 	    	packEncrypt(features, cc, keys); 
@@ -190,9 +190,6 @@ int main(int argc, const char * argv[])
 	{    
 	    	std::cout << "Function Inference." << std::endl;
 		
-	    	/*
-	     	* Add activation function checks
-	     	* */
 		
 		// Reads encrypted data from file /Encrypteddata.txt
 		std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecx;
@@ -240,20 +237,21 @@ int main(int argc, const char * argv[])
 	
 		cout << "Starting inference" << std::endl;
 		
-			
-		// Perform first layer
+		/*	
+		// Perform first layer TODO
+		if (argv[2].compare("relu")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -2, 15, 5, [](double x) -> double { return (x>0) ? x : 0; });
+		else if (argv[2].compare("tanh")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -2, 15, 5, [](double x) -> double { return (x>0) ? x : 0; });
+		else if (argv[2].compare("sigmoid")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -2, 15, 5, [](double x) -> double { return (x>0) ? x : 0; });
+		else if (argv[2].compare("square")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -2, 15, 5, [](double x) -> double { return (x>0) ? x : 0; });
+		else if (argv[2].compare("linear")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -2, 15, 5, [](double x) -> double { return (x>0) ? x : 0; });
+		else printErrorMess();
+		*/
 		ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -2, 15, 5, [](double x) -> double { return (x>0) ? x : 0; });
-		// ciphertextVecx = ciphertextVecy;
-		// ciphertextVecy.clear();
-		// ciphertextVecy.shrink_to_fit();
 		ciphertextVecx.shrink_to_fit();
 		cout << "First Layer Completed" << std::endl;	
 
 		// Perform second layer
 		ciphertextVecx=chebyFunc(cc, ciphertextVecx, W2, 64, -40, 36, 5, [](double x) -> double { return (x>0) ? x : 0; });
-		// ciphertextVecx = ciphertextVecy;
-		// ciphertextVecy.clear();
-		// ciphertextVecy.shrink_to_fit();
 		ciphertextVecx.shrink_to_fit();
 		std::cout << "Second layer completed" << std::endl;
 
@@ -276,11 +274,18 @@ int main(int argc, const char * argv[])
 		break;
 	}
         case 't':
-	{    
-	    	/*
-	     	* Add activation function checks
-	     	* */
-	    	char *args[] = { (char *)"./../train.py", (char*)"25", (char*) "0.001", (char*) "relu", (char *) NULL};
+	{   
+	       /*	
+		// Perform first layer TODO
+		if (argv[2].compare("relu")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -7, 7, 5, [](double x) -> double { return (x>0) ? x : 0; });
+		else if (argv[2].compare("tanh")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -15, 15, 5, [](double x) -> double { return (x>0) ? x : 0; });
+		else if (argv[2].compare("sigmoid")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -2, 15, 5, [](double x) -> double { return (x>0) ? x : 0; });
+		else if (argv[2].compare("square")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -2, 15, 5, [](double x) -> double { return (x>0) ? x : 0; });
+		else if (argv[2].compare("linear")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -2, 15, 5, [](double x) -> double { return (x>0) ? x : 0; });
+		else printErrorMess();
+	    	*/
+		
+		char *args[] = { (char *)"./../train.py", (char*)"25", (char*) "0.001", (char*) "relu", (char *) NULL};
             	execvp(args[0], args);
 	    	perror("exec error:");
             	break;
@@ -382,7 +387,7 @@ void printErrorMess()
 
 void accuracy_calc(const std::vector <double>&y, const std::vector< std::vector <double>>&y_hat){
 
-        unsigned BATCH_SIZE = y_hat.size();
+        unsigned BATCH_SIZE = y_hat[0].size();
         int counter=0, index=0;
         float max=0.;
 	// std::vector<float> max_save;
@@ -498,7 +503,6 @@ std::vector<ConstCiphertext<DCRTPoly>> chebyFunc(CryptoContext<DCRTPoly> cc, std
 	for(unsigned i = 0; i < NumWeightLines; ++i){
 		auto result = cc->EvalLinearWSum(ciphertextVecx, W[i]);
 		result = cc->EvalChebyshevFunction(fp, result, lowerbound, upperbound, degree);
-		//check if ^ works
 		ciphertextVecy.push_back(result);
 		std::cout << "Calculated line i="<< i << "/" << progress << std::endl;
 	}
