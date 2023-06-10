@@ -59,7 +59,7 @@ int main(int argc, const char * argv[])
 	}
     
     switch (argv[1][0]) {
-        case 'e':
+        case 'p':
 	{		
 		// Create context and set its params
 		uint32_t multDepth = 11;	// multiplication depth
@@ -94,11 +94,6 @@ int main(int argc, const char * argv[])
 		std::cout << "The key pair has been generated." << std::endl;
 			
 		SerializeCryptoContext(cc, keys);	
-		
-		// execute downloader script
-		char *args[] = { (char *)"../dataset/download_mnist.py", (char*)NULL};
-	    	int i = execvp(args[0], args);
-	    	if(i!=0) perror("Error running downloader script:");
 	     
 	    	vector<vector<double>> features = readFile("test_features.txt");
 	    	cout << "x_train loaded w/ shape: (" << features.size()<< ", " << features[0].size() << ")\n";
@@ -111,7 +106,14 @@ int main(int argc, const char * argv[])
 	    	
 		break;
 	}
-        case 'd':
+	case 'd':
+	{
+		// execute downloader script
+		char *args[] = { (char *)"../dataset/download_mnist.py", (char*)NULL};
+	    	int i = execvp(args[0], args);
+	    	if(i!=0) perror("Error running downloader script:");
+	}
+        case 'e':
 	{
             	std::cout << "Function Decrypt." << std::endl;
            	
