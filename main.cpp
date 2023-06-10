@@ -47,7 +47,7 @@ void SerializeCryptoContext(CryptoContext<DCRTPoly> cc, KeyPair<DCRTPoly> keys);
 
 void packEncrypt(std::vector<std::vector<double>> data, CryptoContext<DCRTPoly> cc, KeyPair<DCRTPoly> keys);
 
-std::vector<ConstCiphertext<DCRTPoly>> chebyFunc(CryptoContext<DCRTPoly> cc, std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecx, std::vector<std::vector<double>> W, unsigned NumWeightLines, int lowerbound, int upperbound, int degree);
+std::vector<ConstCiphertext<DCRTPoly>> chebyFunc(CryptoContext<DCRTPoly> cc, std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecx, std::vector<std::vector<double>> W, unsigned NumWeightLines, int lowerbound, int upperbound, int degree, function<double(const double)> fp);
 
 int main(int argc, const char * argv[])
 {
@@ -92,9 +92,10 @@ int main(int argc, const char * argv[])
     		cc->EvalMultKeyGen(keys.secretKey);
 		
 		std::cout << "The key pair has been generated." << std::endl;
-	
+			
 		SerializeCryptoContext(cc, keys);	
-
+		
+		// execute downloader script
 		char *args[] = { (char *)"../dataset/download_mnist.py", (char*)NULL};
 	    	int i = execvp(args[0], args);
 	    	if(i!=0) perror("Error running downloader script:");
@@ -187,6 +188,9 @@ int main(int argc, const char * argv[])
 	{    
 	    	std::cout << "Function Inference." << std::endl;
 		
+	    	/*
+	     	* Add activation function checks
+	     	* */
 		
 		// Reads encrypted data from file /Encrypteddata.txt
 		std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecx;
@@ -236,18 +240,18 @@ int main(int argc, const char * argv[])
 		
 			
 		// Perform first layer
-		ciphertextVecy=chebyFunc(cc, ciphertextVecx, W1, 128, -2, 15, 5);
-		ciphertextVecx = ciphertextVecy;
-		ciphertextVecy.clear();
-		ciphertextVecy.shrink_to_fit();
+		ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -2, 15, 5, [](double x) -> double { return (x>0) ? x : 0; });
+		// ciphertextVecx = ciphertextVecy;
+		// ciphertextVecy.clear();
+		// ciphertextVecy.shrink_to_fit();
 		ciphertextVecx.shrink_to_fit();
 		cout << "First Layer Completed" << std::endl;	
 
 		// Perform second layer
-		ciphertextVecy=chebyFunc(cc, ciphertextVecx, W2, 64, -40, 36, 5);
-		ciphertextVecx = ciphertextVecy;
-		ciphertextVecy.clear();
-		ciphertextVecy.shrink_to_fit();
+		ciphertextVecx=chebyFunc(cc, ciphertextVecx, W2, 64, -40, 36, 5, [](double x) -> double { return (x>0) ? x : 0; });
+		// ciphertextVecx = ciphertextVecy;
+		// ciphertextVecy.clear();
+		// ciphertextVecy.shrink_to_fit();
 		ciphertextVecx.shrink_to_fit();
 		std::cout << "Second layer completed" << std::endl;
 
@@ -258,13 +262,9 @@ int main(int argc, const char * argv[])
 		
 			std::cout << "Calculated line i="<< i << "/9" << std::endl;
 		}
-		// ciphertextVecx = ciphertextVecy;
-		ciphertextVecx.clear();
-		ciphertextVecx.shrink_to_fit();
-		ciphertextVecy.shrink_to_fit();
 		std::cout << "Third layer completed" << std::endl;
 
-		if (!Serial::SerializeToFile(DATAFOLDER + "/" + "encryptedlabels.txt", ciphertextVecx, SerType::BINARY))
+		if (!Serial::SerializeToFile(DATAFOLDER + "/" + "encryptedlabels.txt", ciphertextVecy, SerType::BINARY))
        		{
         		std::cerr << "Error writing serialization of ciphertextVecx to encryptedlabels.txt" << std::endl;
         		exit(1);
@@ -487,7 +487,7 @@ void SerializeCryptoContext(CryptoContext<DCRTPoly> cc, KeyPair<DCRTPoly> keys)
 }
 
 
-std::vector<ConstCiphertext<DCRTPoly>> chebyFunc(CryptoContext<DCRTPoly> cc, std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecx, std::vector<std::vector<double>> W, unsigned NumWeightLines, int lowerbound, int upperbound, int degree)
+std::vector<ConstCiphertext<DCRTPoly>> chebyFunc(CryptoContext<DCRTPoly> cc, std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecx, std::vector<std::vector<double>> W, unsigned NumWeightLines, int lowerbound, int upperbound, int degree, function<double(const double)> fp)
 {
 	std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecy;
 
@@ -495,7 +495,7 @@ std::vector<ConstCiphertext<DCRTPoly>> chebyFunc(CryptoContext<DCRTPoly> cc, std
 	// Performs the LinearWSum of ciphertextVecx with W
 	for(unsigned i = 0; i < NumWeightLines; ++i){
 		auto result = cc->EvalLinearWSum(ciphertextVecx, W[i]);
-		result = cc->EvalChebyshevFunction([](double x) -> double { return (x>0) ? x : 0; }, result, lowerbound, upperbound, degree);
+		result = cc->EvalChebyshevFunction(fp, result, lowerbound, upperbound, degree);
 		//check if ^ works
 		ciphertextVecy.push_back(result);
 		std::cout << "Calculated line i="<< i << "/" << progress << std::endl;
