@@ -38,7 +38,7 @@ using namespace std;
 
 vector<string> string_split(const string &s, char delim);
 
-void accuracy_calc(const vector <double>&y, const vector< vector <double>>&y_hat);
+void accuracy_calc(const vector <int>&y, const vector< vector <double>>&y_hat);
 
 vector<vector<double>> readFile(string filename);
 
@@ -58,6 +58,7 @@ int main(int argc, char* argv[])
 		printErrorMess();
 		return 0;
 	}
+
     
     switch (argv[1][0]) {
         case 'p':
@@ -165,7 +166,7 @@ int main(int argc, char* argv[])
 	
 		// Check accuracy
 		ifstream input_labels (DATASETFOLDER + "/test_labels.txt");
-		vector<double> y_train;
+		vector<int> y_train;
     
 		if (input_labels.is_open())
 		{
@@ -241,7 +242,7 @@ int main(int argc, char* argv[])
 		// Perform first layer
 		if (strcmp(argv[2], "relu")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -7, 7, 5, "relu");
 		else if (strcmp(argv[2], "tanh")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -5, 8, 5, "tanh");
-		else if (strcmp(argv[2], "sigmoid")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -11, 10, 5, "sigmoid");
+		else if (strcmp(argv[2], "sigmoid")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -16, 16, 5, "sigmoid");  // 11, 10
 		else if (strcmp(argv[2], "square")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -2, 15, 5, "square");
 		else if (strcmp(argv[2], "linear")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -2, 15, 5, "linear");
 		else printErrorMess();	
@@ -250,11 +251,11 @@ int main(int argc, char* argv[])
 		cout << "First Layer Completed" << std::endl;	
 
 		// Perform second layer
-		if (strcmp(argv[2], "relu")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 64, -15, 15, 5, "relu");
-		else if (strcmp(argv[2], "tanh")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 64, -10, 10, 5, "tanh");
-		else if (strcmp(argv[2], "sigmoid")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 64, -7, 7, 5, "sigmoid");
-		else if (strcmp(argv[2], "square")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 64, -2, 15, 5, "square");
-		else if (strcmp(argv[2], "linear")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 64, -2, 15, 5, "linear");
+		if (strcmp(argv[2], "relu")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W2, 64, -15, 15, 5, "relu");
+		else if (strcmp(argv[2], "tanh")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W2, 64, -8, 6, 5, "tanh");
+		else if (strcmp(argv[2], "sigmoid")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W2, 64, -7, 7, 5, "sigmoid");
+		else if (strcmp(argv[2], "square")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W2, 64, -2, 15, 5, "square");
+		else if (strcmp(argv[2], "linear")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W2, 64, -2, 15, 5, "linear");
 		else printErrorMess();	
 		ciphertextVecx.shrink_to_fit();
 		std::cout << "Second layer completed" << std::endl;
@@ -384,12 +385,12 @@ void printErrorMess()
  * 
  * */
 
-void accuracy_calc(const std::vector <double>&y, const std::vector< std::vector <double>>&y_hat){
+void accuracy_calc(const std::vector <int>&y, const std::vector< std::vector <double>>&y_hat){
 
-        unsigned BATCH_SIZE = y_hat[0].size();
+        unsigned BATCH_SIZE = y.size();
         int counter=0, index=0;
         float max=0.;
-	// std::vector<float> max_save;
+	// std::vector<int> max_save;
 
 	std::cout << "y hat has shape: (" << y_hat.size() << ", " << y_hat[0].size() << ")\n";
 
@@ -399,7 +400,7 @@ void accuracy_calc(const std::vector <double>&y, const std::vector< std::vector 
                 max=0.;
                 for(unsigned j=0; j < 10; j++)
                 {
-                        if(y_hat[j][i]>max)
+			if(y_hat[j][i]>max)
                         {
                                 max = y_hat[j][i];
                                 index=j;
@@ -496,7 +497,6 @@ void SerializeCryptoContext(CryptoContext<DCRTPoly> cc, KeyPair<DCRTPoly> keys)
 std::vector<ConstCiphertext<DCRTPoly>> chebyFunc(CryptoContext<DCRTPoly> cc, std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecx, std::vector<std::vector<double>> W, unsigned NumWeightLines, int lowerbound, int upperbound, int degree, string act) 
 {
 	std::vector<ConstCiphertext<DCRTPoly>> ciphertextVecy;
-
 	int progress=NumWeightLines-1;
 	// Performs the LinearWSum of ciphertextVecx with W
 	for(unsigned i = 0; i < NumWeightLines; ++i){
