@@ -15,21 +15,40 @@ To install the OpenFHE library refer to [OpenFHE installation guide](https://ope
 
 After installing all the prerequisites:
 1. clone this repository
-1. create a build directory where the binaries will be built. Example:
+2. create a build directory where the binaries will be built. Example:
 ```
-mkdir build
+mkdir -p build/Data
 cd build
 cmake ..
 ```
-1. compile the binary: ```make```
+3. compile the binary: ```make```
+
+4. Make the scripts executable
+```
+chmod +x ../train.py ../dataset/download_mnist.py
+```
 
 ## Running the binary
 
-Before running the binary make sure you download the Mnist-Dataset. Our binary expects a csv type of file that uses '\t', instead of ',', with the flattened image, also we only perform normalization after loading the dataset, not in the dataset at rest.
-For this reason we provide a script to save it in that form called download_mnist.py, feel free to use it: 
+Example usage:
 ```
-python3 download_mnist.py
+# Download dataset
+./encrypt d
+
+# pack and encrypt the dataset
+./encrypt p
+
+# train the model
+./encrypt t <activation function>
+
+# Supported activation functions include: "relu", "tanh", "sigmoid" and "linear"
+# perform encrypted inference
+./encrypt i <activation_function>
+
+# Decrypt the data and measure accuracy
+./encrypt e
 ```
+We reccomend using the various modes/commands in the order presented
 
 ## Homomorphic encryption
 
