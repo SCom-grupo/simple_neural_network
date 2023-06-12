@@ -104,7 +104,7 @@ int main(int argc, char* argv[])
 	case 'd':
 		{
 			// execute downloader script
-			char *args[] = { (char *)"../dataset/download_mnist.py", (char*)NULL};
+			char *args[] = {(char*) "python3", (char *)"../dataset/download_mnist.py", (char*)NULL};
 			int i = execvp(args[0], args);
 			if(i!=0) perror("Error running downloader script:");
 			break;
@@ -274,7 +274,7 @@ int main(int argc, char* argv[])
 		}
     case 't':
 		{   
-			char *args[] = { (char *)"./../train.py", (char*)"25", (char*) "0.001", (char *)argv[2], (char *) NULL};
+			char *args[] = {(char *) "python3", (char *)"./../train.py", (char*)"25", (char*) "0.001", (char *)argv[2], (char *) NULL};
 			execvp(args[0], args);
 			perror("exec error:");
 			break;
