@@ -23,10 +23,6 @@ cmake ..
 ```
 3. compile the binary: ```make```
 
-4. Make the scripts executable
-```
-chmod +x ../train.py ../dataset/download_mnist.py
-```
 
 ## Running the binary
 
