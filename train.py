@@ -50,6 +50,10 @@ class Neural_Net(object):
         self.hidden_size = hidden_size
         self.hidden2 = hidden2
         self.n_features = n_features
+        # if act == relu:
+        #     self.weights_1 = np.random.uniform(0., 0.05, size=(n_features, hidden_size)) # 0.1 0.1
+        #     self.weights_2 = np.random.uniform(0., 0.05, size=(hidden_size, hidden2))
+        #     self.weights_3 = np.random.uniform(0., 0.05, size=(hidden2, n_classes))
         self.weights_1 = np.random.normal(loc= 0, scale=np.sqrt(3.6/n_features), size=(n_features, hidden_size)) # 0.1 0.1
         self.weights_2 = np.random.normal(loc= 0, scale=np.sqrt(3.6/hidden_size), size=(hidden_size, hidden2))
         self.weights_3 = np.random.normal(loc= 0, scale=np.sqrt(3.6/hidden2), size=(hidden2, n_classes))

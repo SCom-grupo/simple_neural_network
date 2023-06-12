@@ -64,7 +64,7 @@ int main(int argc, char* argv[])
         case 'p':
 	{		
 		// Create context and set its params
-		uint32_t multDepth = 11;	// multiplication depth
+		uint32_t multDepth = 13;	// multiplication depth
 		uint32_t scaleModSize = 50;	// scale module
     		uint32_t batchSize = 1<<14;	// batch size or how many slots per pack
 
@@ -241,8 +241,8 @@ int main(int argc, char* argv[])
 		
 		// Perform first layer
 		if (strcmp(argv[2], "relu")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -7, 7, 5, "relu");
-		else if (strcmp(argv[2], "tanh")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -5, 8, 5, "tanh");
-		else if (strcmp(argv[2], "sigmoid")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -16, 16, 5, "sigmoid");  // 11, 10
+		else if (strcmp(argv[2], "tanh")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -8, 10, 12, "tanh");
+		else if (strcmp(argv[2], "sigmoid")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -17, 16, 12, "sigmoid");  // 11, 10
 		else if (strcmp(argv[2], "square")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -2, 15, 5, "square");
 		else if (strcmp(argv[2], "linear")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W1, 128, -2, 15, 5, "linear");
 		else printErrorMess();	
@@ -252,8 +252,8 @@ int main(int argc, char* argv[])
 
 		// Perform second layer
 		if (strcmp(argv[2], "relu")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W2, 64, -15, 15, 5, "relu");
-		else if (strcmp(argv[2], "tanh")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W2, 64, -8, 6, 5, "tanh");
-		else if (strcmp(argv[2], "sigmoid")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W2, 64, -7, 7, 5, "sigmoid");
+		else if (strcmp(argv[2], "tanh")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W2, 64, -8, 9, 12, "tanh");
+		else if (strcmp(argv[2], "sigmoid")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W2, 64, -7, 8, 12, "sigmoid");
 		else if (strcmp(argv[2], "square")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W2, 64, -2, 15, 5, "square");
 		else if (strcmp(argv[2], "linear")==0) ciphertextVecx=chebyFunc(cc, ciphertextVecx, W2, 64, -2, 15, 5, "linear");
 		else printErrorMess();	
