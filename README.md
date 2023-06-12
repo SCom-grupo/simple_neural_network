@@ -33,20 +33,20 @@ chmod +x ../train.py ../dataset/download_mnist.py
 Example usage:
 ```
 # Download dataset
-./encrypt d
+./main d
 
 # pack and encrypt the dataset
-./encrypt p
+./main p
 
 # train the model
-./encrypt t <activation function>
+./main t <activation function>
 
 # Supported activation functions include: "relu", "tanh", "sigmoid" and "linear"
 # perform encrypted inference
 ./encrypt i <activation_function>
 
 # Decrypt the data and measure accuracy
-./encrypt e
+./main e
 ```
 We reccomend using the various modes/commands in the order presented
 
