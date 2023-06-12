@@ -47,4 +47,4 @@ endif()
 ### EXAMPLE:
 ### add_executable( test demo-simple-example.cpp )
 
-add_executable( encrypt main.cpp )
+add_executable( main main.cpp )

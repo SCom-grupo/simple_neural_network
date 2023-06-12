@@ -46,3 +46,12 @@ If you want an explanation on FHE and the CKKS scheme, just do like us and read 
 ## Mnist-dataset 
 
 The Mnist Dataset is a dataset with 70000 hand-written digits saved in a 28x28 pixels image. Since the original dataset's website had an miscofiguration it is now unaccessible so we provide a script to download it
+
+## Exectution options
+
+When calling the program the following arguments can be used to execute a specific part of the code:
+- p Encrypts the data
+- d Calls the python downloader script that downloads the dataset
+- e Calls Decrypts data and checks accuracy
+- i <options> This starts the inferance part of the code with one of the following activation functions as specified by options parameter: relu, tanh, sigmoid. By default does linear
+- t Calls the python training script that produces the weight files
