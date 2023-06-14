@@ -39,7 +39,7 @@ Example usage:
 
 # Supported activation functions include: "relu", "tanh", "sigmoid" and "linear"
 # perform encrypted inference
-./encrypt i <activation_function>
+./main i <activation_function>
 
 # Decrypt the data and measure accuracy
 ./main e
